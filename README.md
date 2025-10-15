@@ -1,6 +1,6 @@
 # Streams Prefetcher
 
-[![Latest Release](https://img.shields.io/gitlab/v/release/deejay189393/streams-prefetcher?style=for-the-badge)](https://gitlab.com/deejay189393/streams-prefetcher/-/releases)
+[![Latest Release](https://img.shields.io/gitlab/v/tag/deejay189393%2Fstreams-prefetcher?style=for-the-badge)](https://gitlab.com/deejay189393/streams-prefetcher/-/releases)
 [![Container Registry](https://img.shields.io/badge/docker-registry.gitlab.com-blue?style=for-the-badge&logo=docker)](https://gitlab.com/deejay189393/streams-prefetcher/container_registry)
 
 **Pre-cache Stremio addon streams so every movie and show opens instantly - no more waiting for streams to load or for uncached streams to become available.**
