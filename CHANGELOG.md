@@ -5,6 +5,17 @@ All notable changes to Streams Prefetcher will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.6] - 2025-10-15
+
+### Changed
+- Migrated repository from GitHub to GitLab
+  - Repository now hosted at https://gitlab.com/deejay189393/streams-prefetcher
+  - Docker images now published to GitLab Container Registry (registry.gitlab.com)
+  - Automated CI/CD pipelines configured for releases and nightly builds
+  - Multi-arch image builds (linux/amd64, linux/arm64) via GitLab CI
+  - Updated README and documentation with new repository URLs
+  - Nightly builds run daily at 3 AM EST
+
 ## [0.12.5] - 2025-10-15
 
 ### Fixed
