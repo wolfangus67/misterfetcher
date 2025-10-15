@@ -58,9 +58,9 @@ create_release:
         CHANGELOG="Release $VERSION"
       fi
 
-      # Create release description with heredoc
-      cat > release_description.md << 'RELEASE_EOF'
-$CHANGELOG
+      # Create release description
+      echo "$CHANGELOG" > release_description.md
+      cat >> release_description.md << 'RELEASE_EOF'
 
 ## Docker Images
 
@@ -138,7 +138,7 @@ create_nightly_release:
       # Get recent commits
       COMMITS=$(git log --pretty=format:"- %s (%h)" -10)
 
-      # Create release description with heredoc
+      # Create release description
       cat > nightly_description.md << 'NIGHTLY_EOF'
 ## Nightly Build
 
@@ -158,8 +158,8 @@ docker pull $REGISTRY/$IMAGE_NAME:nightly
 
 ### Recent Commits
 
-$COMMITS
 NIGHTLY_EOF
+      echo "$COMMITS" >> nightly_description.md
 
       # Expand variables in description
       DESCRIPTION=$(envsubst < nightly_description.md)
