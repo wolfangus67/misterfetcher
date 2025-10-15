@@ -64,13 +64,11 @@ create_release:
 
 ## Docker Images
 
-```bash
-# Specific version
-docker pull $REGISTRY/$IMAGE_NAME:$VERSION
+    # Specific version
+    docker pull $REGISTRY/$IMAGE_NAME:$VERSION
 
-# Latest stable
-docker pull $REGISTRY/$IMAGE_NAME:latest
-```
+    # Latest stable
+    docker pull $REGISTRY/$IMAGE_NAME:latest
 RELEASE_EOF
 
       # Expand variables in description
@@ -142,19 +140,17 @@ create_nightly_release:
       cat > nightly_description.md << 'NIGHTLY_EOF'
 ## Nightly Build
 
-This is an automated nightly build from the `main` branch.
+This is an automated nightly build from the main branch.
 
-**⚠️ Warning**: Nightly builds are unstable and may contain bugs. Use stable releases for production.
+**Warning:** Nightly builds are unstable and may contain bugs. Use stable releases for production.
 
 ### Docker Images
 
-```bash
-# Specific nightly version
-docker pull $REGISTRY/$IMAGE_NAME:$TAG
+    # Specific nightly version
+    docker pull $REGISTRY/$IMAGE_NAME:$TAG
 
-# Latest nightly (always updated)
-docker pull $REGISTRY/$IMAGE_NAME:nightly
-```
+    # Latest nightly (always updated)
+    docker pull $REGISTRY/$IMAGE_NAME:nightly
 
 ### Recent Commits
 
