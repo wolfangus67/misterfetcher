@@ -59,17 +59,17 @@ create_release:
       fi
 
       # Create release description
-      echo "$CHANGELOG" > release_description.md
-      cat >> release_description.md << 'RELEASE_EOF'
-
-## Docker Images
-
-    # Specific version
-    docker pull $REGISTRY/$IMAGE_NAME:$VERSION
-
-    # Latest stable
-    docker pull $REGISTRY/$IMAGE_NAME:latest
-RELEASE_EOF
+      {
+        echo "$CHANGELOG"
+        echo ""
+        echo "## Docker Images"
+        echo ""
+        echo "Specific version:"
+        echo "docker pull $REGISTRY/$IMAGE_NAME:$VERSION"
+        echo ""
+        echo "Latest stable:"
+        echo "docker pull $REGISTRY/$IMAGE_NAME:latest"
+      } > release_description.md
 
       # Expand variables in description
       DESCRIPTION=$(envsubst < release_description.md)
@@ -137,25 +137,25 @@ create_nightly_release:
       COMMITS=$(git log --pretty=format:"- %s (%h)" -10)
 
       # Create release description
-      cat > nightly_description.md << 'NIGHTLY_EOF'
-## Nightly Build
-
-This is an automated nightly build from the main branch.
-
-**Warning:** Nightly builds are unstable and may contain bugs. Use stable releases for production.
-
-### Docker Images
-
-    # Specific nightly version
-    docker pull $REGISTRY/$IMAGE_NAME:$TAG
-
-    # Latest nightly (always updated)
-    docker pull $REGISTRY/$IMAGE_NAME:nightly
-
-### Recent Commits
-
-NIGHTLY_EOF
-      echo "$COMMITS" >> nightly_description.md
+      {
+        echo "## Nightly Build"
+        echo ""
+        echo "This is an automated nightly build from the main branch."
+        echo ""
+        echo "**Warning:** Nightly builds are unstable and may contain bugs. Use stable releases for production."
+        echo ""
+        echo "### Docker Images"
+        echo ""
+        echo "Specific nightly version:"
+        echo "docker pull $REGISTRY/$IMAGE_NAME:$TAG"
+        echo ""
+        echo "Latest nightly (always updated):"
+        echo "docker pull $REGISTRY/$IMAGE_NAME:nightly"
+        echo ""
+        echo "### Recent Commits"
+        echo ""
+        echo "$COMMITS"
+      } > nightly_description.md
 
       # Expand variables in description
       DESCRIPTION=$(envsubst < nightly_description.md)
