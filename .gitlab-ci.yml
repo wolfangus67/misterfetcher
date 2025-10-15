@@ -23,8 +23,12 @@ release:
       VERSION=$CI_COMMIT_TAG
       echo "Building release version: $VERSION"
 
+      # Set up buildx with docker-container driver
+      docker context create builder-context
+      docker buildx create --name builder --driver docker-container --use builder-context
+      docker buildx inspect --bootstrap
+
       # Build multi-arch image
-      docker buildx create --use --name builder || true
       docker buildx build \
         --platform linux/amd64,linux/arm64 \
         --push \
@@ -99,8 +103,12 @@ nightly:
       TAG=$(date -u +'%Y.%m.%d.%H%M')-nightly
       echo "Building nightly tag: $TAG"
 
+      # Set up buildx with docker-container driver
+      docker context create builder-context
+      docker buildx create --name builder --driver docker-container --use builder-context
+      docker buildx inspect --bootstrap
+
       # Build multi-arch image
-      docker buildx create --use --name builder || true
       docker buildx build \
         --platform linux/amd64,linux/arm64 \
         --push \
