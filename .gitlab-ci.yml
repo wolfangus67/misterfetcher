@@ -1,0 +1,163 @@
+stages:
+  - build
+  - release
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+  REGISTRY: registry.gitlab.com
+  IMAGE_NAME: $CI_PROJECT_PATH
+
+# Release build - triggered on version tags
+release:
+  stage: build
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/  # Match tags like v0.9.0, v1.0.0
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - |
+      VERSION=$CI_COMMIT_TAG
+      echo "Building release version: $VERSION"
+
+      # Build multi-arch image
+      docker buildx create --use --name builder || true
+      docker buildx build \
+        --platform linux/amd64,linux/arm64 \
+        --push \
+        --tag $REGISTRY/$IMAGE_NAME:latest \
+        --tag $REGISTRY/$IMAGE_NAME:$VERSION \
+        --cache-from type=registry,ref=$REGISTRY/$IMAGE_NAME:buildcache \
+        --cache-to type=registry,ref=$REGISTRY/$IMAGE_NAME:buildcache,mode=max \
+        .
+  after_script:
+    - docker buildx rm builder || true
+
+# Create GitLab release with changelog
+create_release:
+  stage: release
+  image: alpine:latest
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+  before_script:
+    - apk add --no-cache curl jq
+  script:
+    - |
+      VERSION=$CI_COMMIT_TAG
+
+      # Extract changelog section for this version
+      if [ -f CHANGELOG.md ]; then
+        CHANGELOG=$(awk "/## \[${VERSION#v}\]/,/## \[/" CHANGELOG.md | sed '$d' | tail -n +2)
+        if [ -z "$CHANGELOG" ]; then
+          CHANGELOG="See [CHANGELOG.md](${CI_PROJECT_URL}/-/blob/main/CHANGELOG.md) for details."
+        fi
+      else
+        CHANGELOG="Release $VERSION"
+      fi
+
+      # Create release description
+      DESCRIPTION="$CHANGELOG
+
+## Docker Images
+
+\`\`\`bash
+# Specific version
+docker pull $REGISTRY/$IMAGE_NAME:$VERSION
+
+# Latest stable
+docker pull $REGISTRY/$IMAGE_NAME:latest
+\`\`\`"
+
+      # Create release using GitLab API
+      curl --request POST \
+        --header "PRIVATE-TOKEN: $CI_JOB_TOKEN" \
+        --data tag_name="$VERSION" \
+        --data name="$VERSION" \
+        --data description="$DESCRIPTION" \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/releases" || echo "Release may already exist"
+
+# Nightly build - runs daily at 2 AM UTC
+nightly:
+  stage: build
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"  # Triggered by scheduled pipeline
+    - if: $CI_PIPELINE_SOURCE == "web"       # Allow manual triggers
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - |
+      TAG=$(date -u +'%Y.%m.%d.%H%M')-nightly
+      echo "Building nightly tag: $TAG"
+
+      # Build multi-arch image
+      docker buildx create --use --name builder || true
+      docker buildx build \
+        --platform linux/amd64,linux/arm64 \
+        --push \
+        --tag $REGISTRY/$IMAGE_NAME:nightly \
+        --tag $REGISTRY/$IMAGE_NAME:$TAG \
+        --cache-from type=registry,ref=$REGISTRY/$IMAGE_NAME:buildcache \
+        --cache-to type=registry,ref=$REGISTRY/$IMAGE_NAME:buildcache,mode=max \
+        .
+
+      # Export tag for next job
+      echo "NIGHTLY_TAG=$TAG" >> build.env
+  artifacts:
+    reports:
+      dotenv: build.env
+  after_script:
+    - docker buildx rm builder || true
+
+# Create nightly pre-release
+create_nightly_release:
+  stage: release
+  image: alpine:latest
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+  needs:
+    - job: nightly
+      artifacts: true
+  before_script:
+    - apk add --no-cache curl jq git
+  script:
+    - |
+      TAG=$NIGHTLY_TAG
+
+      # Get recent commits
+      COMMITS=$(git log --pretty=format:"- %s (%h)" -10)
+
+      # Create release description
+      DESCRIPTION="## Nightly Build
+
+This is an automated nightly build from the \`main\` branch.
+
+**⚠️ Warning**: Nightly builds are unstable and may contain bugs. Use stable releases for production.
+
+### Docker Images
+
+\`\`\`bash
+# Specific nightly version
+docker pull $REGISTRY/$IMAGE_NAME:$TAG
+
+# Latest nightly (always updated)
+docker pull $REGISTRY/$IMAGE_NAME:nightly
+\`\`\`
+
+### Recent Commits
+
+$COMMITS"
+
+      # Create pre-release using GitLab API
+      curl --request POST \
+        --header "PRIVATE-TOKEN: $CI_JOB_TOKEN" \
+        --data tag_name="$TAG" \
+        --data name="Nightly Build - $(date -u +'%Y-%m-%d %H:%M UTC')" \
+        --data description="$DESCRIPTION" \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/releases"

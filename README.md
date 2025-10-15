@@ -1,7 +1,7 @@
 # Streams Prefetcher
 
-[![Latest Release](https://img.shields.io/github/v/release/deejay189393/Streams-Prefetcher?style=for-the-badge)](https://github.com/deejay189393/Streams-Prefetcher/releases/latest)
-[![Docker Pulls](https://img.shields.io/badge/docker-ghcr.io-blue?style=for-the-badge&logo=docker)](https://github.com/deejay189393/Streams-Prefetcher/pkgs/container/streams-prefetcher)
+[![Latest Release](https://img.shields.io/gitlab/v/release/deejay189393/streams-prefetcher?style=for-the-badge)](https://gitlab.com/deejay189393/streams-prefetcher/-/releases)
+[![Container Registry](https://img.shields.io/badge/docker-registry.gitlab.com-blue?style=for-the-badge&logo=docker)](https://gitlab.com/deejay189393/streams-prefetcher/container_registry)
 
 **Pre-cache Stremio addon streams so every movie and show opens instantly - no more waiting for streams to load or for uncached streams to become available.**
 
@@ -112,14 +112,14 @@ Think of it as preparing everything in advance - like preheating an oven before 
 
 ## Docker Images
 
-Streams Prefetcher is available as pre-built Docker images on GitHub Container Registry:
+Streams Prefetcher is available as pre-built Docker images on GitLab Container Registry:
 
 ### Stable Releases (Recommended for Production)
 
 ```yaml
-image: ghcr.io/deejay189393/streams-prefetcher:latest
+image: registry.gitlab.com/deejay189393/streams-prefetcher:latest
 # or pin to a specific version
-image: ghcr.io/deejay189393/streams-prefetcher:v0.9.0
+image: registry.gitlab.com/deejay189393/streams-prefetcher:v0.9.0
 ```
 
 - **`:latest`** - Always points to the latest stable release
@@ -131,9 +131,9 @@ image: ghcr.io/deejay189393/streams-prefetcher:v0.9.0
 ### Nightly Builds (Cutting Edge Features)
 
 ```yaml
-image: ghcr.io/deejay189393/streams-prefetcher:nightly
+image: registry.gitlab.com/deejay189393/streams-prefetcher:nightly
 # or pin to a specific nightly build
-image: ghcr.io/deejay189393/streams-prefetcher:2025.10.06.0139-nightly
+image: registry.gitlab.com/deejay189393/streams-prefetcher:2025.10.06.0139-nightly
 ```
 
 - **`:nightly`** - Always points to the latest nightly build
@@ -144,7 +144,7 @@ image: ghcr.io/deejay189393/streams-prefetcher:2025.10.06.0139-nightly
 
 **Quick Install**:
 ```bash
-docker pull ghcr.io/deejay189393/streams-prefetcher:latest
+docker pull registry.gitlab.com/deejay189393/streams-prefetcher:latest
 ```
 
 ## Quick Start
@@ -165,7 +165,7 @@ docker pull ghcr.io/deejay189393/streams-prefetcher:latest
 
    services:
      streams-prefetcher:
-       image: ghcr.io/deejay189393/streams-prefetcher:latest  # or :nightly for bleeding edge
+       image: registry.gitlab.com/deejay189393/streams-prefetcher:latest  # or :nightly for bleeding edge
        container_name: streams-prefetcher
        ports:
          - "5000:5000"
@@ -189,8 +189,8 @@ docker pull ghcr.io/deejay189393/streams-prefetcher:latest
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/deejay189393/Streams-Prefetcher.git
-   cd Streams-Prefetcher
+   git clone https://gitlab.com/deejay189393/streams-prefetcher.git
+   cd streams-prefetcher
    ```
 
 2. **Configure environment variables** (optional):
@@ -760,7 +760,7 @@ Streams Prefetcher uses a REST API for all operations. Full API documentation:
 ## Support
 
 For issues, questions, or contributions:
-- GitHub Issues: [Create an issue](https://github.com/yourusername/Streams-Prefetcher/issues)
+- GitLab Issues: [Create an issue](https://gitlab.com/deejay189393/streams-prefetcher/-/issues)
 - Changelog: See [CHANGELOG.md](CHANGELOG.md) for version history and updates
 
 ## License
