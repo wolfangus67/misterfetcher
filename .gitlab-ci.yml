@@ -91,6 +91,7 @@ nightly:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"  # Triggered by scheduled pipeline
     - if: $CI_PIPELINE_SOURCE == "web"       # Allow manual triggers
+    - if: $CI_PIPELINE_SOURCE == "api"       # Allow API triggers
   before_script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
@@ -124,6 +125,7 @@ create_nightly_release:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "api"
   needs:
     - job: nightly
       artifacts: true
