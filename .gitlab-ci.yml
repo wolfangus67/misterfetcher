@@ -80,7 +80,7 @@ create_release:
 
       # Create release using GitLab API
       curl --request POST \
-        --header "PRIVATE-TOKEN: $CI_JOB_TOKEN" \
+        --header "JOB-TOKEN: $CI_JOB_TOKEN" \
         --data tag_name="$VERSION" \
         --data name="$VERSION" \
         --data description="$DESCRIPTION" \
@@ -172,7 +172,7 @@ create_nightly_release:
 
       # Create pre-release using GitLab API
       curl --request POST \
-        --header "PRIVATE-TOKEN: $CI_JOB_TOKEN" \
+        --header "JOB-TOKEN: $CI_JOB_TOKEN" \
         --data tag_name="$TAG" \
         --data name="Nightly Build - $(date -u +'%Y-%m-%d %H:%M UTC')" \
         --data description="$DESCRIPTION" \
