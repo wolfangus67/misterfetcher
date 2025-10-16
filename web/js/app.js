@@ -27,6 +27,8 @@ let isPageLoading = true; // Prevent notifications during initial load
 let completionScreenLocked = false; // Prevent accidental hiding of completion screen
 let currentCompletionId = null; // Track current completion to handle dismissal
 let jobTerminationRequested = false; // Track if user requested termination
+let currentPosterLoadingId = null; // Track which poster is currently being loaded to cancel stale updates
+let posterFadeTimeout = null; // Track fade animation timeout for cancellation
 
 // ============================================================================
 // Debug Logging (Mobile-Friendly)
@@ -3841,11 +3843,28 @@ function updateRPDBPoster(imdbId, fullTitle) {
     // e.g., "tt26915338:1:1" -> "tt26915338"
     const baseImdbId = imdbId.split(':')[0];
 
+    // Cancel any in-flight poster operations
+    if (posterFadeTimeout) {
+        clearTimeout(posterFadeTimeout);
+        posterFadeTimeout = null;
+        addDebugLog('[RPDB] Cancelled pending fade animation');
+    }
+
     // Check if this is the same poster as currently displayed
     const currentBaseImdbId = posterImg.dataset.currentImdbId;
-    if (currentBaseImdbId === baseImdbId) {
+    if (currentBaseImdbId === baseImdbId && currentPosterLoadingId === baseImdbId) {
         addDebugLog(`[RPDB] Same series/movie - skipping poster reload (${baseImdbId})`);
         return; // Don't reload the same poster
+    }
+
+    // Mark this poster as the active one being loaded
+    currentPosterLoadingId = baseImdbId;
+    addDebugLog(`[RPDB] Set currentPosterLoadingId to ${baseImdbId}`);
+
+    // Immediately start fading out current poster if visible (don't wait)
+    if (posterImg.classList.contains('visible')) {
+        posterImg.classList.remove('visible'); // CSS transition handles fade
+        addDebugLog('[RPDB] Started immediate fade-out of current poster');
     }
 
     // Build RPDB URL
@@ -3859,6 +3878,12 @@ function updateRPDBPoster(imdbId, fullTitle) {
     const loadNewPoster = () => {
         // Load poster (don't cache - add timestamp to prevent browser caching)
         posterImg.onload = function() {
+            // Check if this load is stale (another item has started loading)
+            if (currentPosterLoadingId !== baseImdbId) {
+                addDebugLog(`[RPDB] ⏭️ Stale poster load ignored (wanted: ${currentPosterLoadingId}, got: ${baseImdbId})`);
+                return;
+            }
+
             addDebugLog(`[RPDB] ✅ Poster loaded successfully (${posterImg.naturalWidth}x${posterImg.naturalHeight})`);
             posterImg.style.display = 'block';
             // Store the current base IMDb ID to prevent reloading same poster
@@ -3870,6 +3895,12 @@ function updateRPDBPoster(imdbId, fullTitle) {
         };
 
         posterImg.onerror = function(e) {
+            // Check if this error is for a stale load
+            if (currentPosterLoadingId !== baseImdbId) {
+                addDebugLog(`[RPDB] ⏭️ Stale poster error ignored (wanted: ${currentPosterLoadingId}, got: ${baseImdbId})`);
+                return;
+            }
+
             addDebugLog(`[RPDB] ❌ Poster failed to load: ${posterUrl}`);
             addDebugLog(`[RPDB] Error type: ${e.type}, target: ${e.target.tagName}`);
             // Try without cache-busting to see if that helps
@@ -3889,22 +3920,9 @@ function updateRPDBPoster(imdbId, fullTitle) {
         posterImg.src = posterUrl + '?t=' + Date.now();
     };
 
-    // Check if there's a currently visible poster
-    const isCurrentlyVisible = posterImg.classList.contains('visible');
-
-    if (isCurrentlyVisible) {
-        // Fade out existing poster first
-        addDebugLog('[RPDB] Fading out existing poster...');
-        posterImg.classList.remove('visible');
-        // Wait for fade out to complete, then load new poster
-        setTimeout(() => {
-            posterImg.style.display = 'none';
-            loadNewPoster();
-        }, 500);
-    } else {
-        // No existing poster, load immediately
-        loadNewPoster();
-    }
+    // Always start loading immediately (fade happens via CSS above)
+    // CSS opacity transition handles all fading - don't manually hide
+    loadNewPoster();
 }
 
 /**
@@ -3913,6 +3931,15 @@ function updateRPDBPoster(imdbId, fullTitle) {
 function hideRPDBPoster() {
     const container = document.getElementById('currently-prefetching');
     const posterImg = document.getElementById('current-poster');
+
+    // Cancel any pending fade timeout
+    if (posterFadeTimeout) {
+        clearTimeout(posterFadeTimeout);
+        posterFadeTimeout = null;
+    }
+
+    // Clear the current loading ID
+    currentPosterLoadingId = null;
 
     // Remove visible class and hide container
     posterImg.classList.remove('visible');
