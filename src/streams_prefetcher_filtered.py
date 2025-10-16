@@ -22,12 +22,12 @@ class FilteredStreamsPrefetcher(OriginalStreamsPrefetcher):
     user selection from the web interface.
     """
 
-    def __init__(self, *args, catalog_filter: Optional[List[str]] = None, **kwargs):
+    def __init__(self, *args, catalog_filter: Optional[List[Tuple[str, str]]] = None, **kwargs):
         """
         Initialize with optional catalog filter.
 
         Args:
-            catalog_filter: List of catalog IDs to include (None = all catalogs)
+            catalog_filter: List of (catalog_id, catalog_type) tuples to include (None = all catalogs)
             *args, **kwargs: Same as original StreamsPrefetcher
         """
         super().__init__(*args, **kwargs)
@@ -52,8 +52,10 @@ class FilteredStreamsPrefetcher(OriginalStreamsPrefetcher):
 
         for catalog in included_catalogs:
             catalog_id = catalog.get('id', '')
+            catalog_type = catalog.get('type', '')
 
-            if catalog_id in self.catalog_filter:
+            # Check if this (catalog_id, type) tuple is in the filter
+            if (catalog_id, catalog_type) in self.catalog_filter:
                 # This catalog is selected by user
                 filtered_included.append(catalog)
             else:

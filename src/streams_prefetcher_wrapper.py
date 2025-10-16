@@ -8,7 +8,7 @@ import io
 from typing import Callable, Optional, Dict, Any, List, Tuple
 from streams_prefetcher_filtered import FilteredStreamsPrefetcher
 from config_manager import ConfigManager
-from catalog_id_utils import get_catalog_id_part
+from catalog_id_utils import get_catalog_id_part, get_catalog_type_part
 
 
 class StreamsPrefetcherWrapper:
@@ -57,13 +57,16 @@ class StreamsPrefetcherWrapper:
         if not addon_urls:
             raise ValueError("No addon URLs configured or no catalogs enabled")
 
-        # Build catalog filter (catalog IDs to include)
+        # Build catalog filter (tuples of catalog_id and type to include)
+        # This ensures movie and series catalogs with the same ID are treated distinctly
         catalog_filter = []
         for cat in enabled_catalogs:
-            # Extract catalog ID from the full ID (format: "addon_url|catalog_id|catalog_type")
+            # Extract catalog ID and type from the full ID (format: "addon_url|catalog_id|catalog_type")
             catalog_id = get_catalog_id_part(cat['id'])
-            if catalog_id:
-                catalog_filter.append(catalog_id)
+            catalog_type = get_catalog_type_part(cat['id'])
+            if catalog_id and catalog_type:
+                # Store as tuple (catalog_id, type) to distinguish movie vs series catalogs
+                catalog_filter.append((catalog_id, catalog_type))
 
         # Get cache_uncached_streams config
         cache_uncached_streams = config.get('cache_uncached_streams', {})
