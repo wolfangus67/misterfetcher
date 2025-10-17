@@ -2229,6 +2229,11 @@ function startTerminateCountdown() {
 
     // Update button text and animation every 100ms
     terminateCountdownInterval = setInterval(() => {
+        // Check if interval was cleared (user released button)
+        if (!terminateCountdownInterval) {
+            return;
+        }
+
         const elapsed = Date.now() - terminateStartTime;
         const remaining = TERMINATE_HOLD_DURATION - elapsed;
         const secondsRemaining = Math.ceil(remaining / 1000);

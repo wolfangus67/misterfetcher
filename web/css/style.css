@@ -1492,6 +1492,7 @@ footer {
     background: linear-gradient(135deg, var(--danger-color) 0%, #dc2626 100%);
     color: white;
     box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+    flex: 1;
     user-select: none;
     -webkit-user-select: none;
     -moz-user-select: none;
@@ -1529,6 +1530,7 @@ footer {
     border: 2px solid rgba(100, 116, 139, 0.4);
     color: #cbd5e1;
     box-shadow: 0 2px 8px rgba(100, 116, 139, 0.3);
+    flex: 1;
 }
 
 .btn-pause:hover:not(:disabled) {
@@ -1551,6 +1553,7 @@ footer {
     color: white;
     box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
     animation: buttonGlowGreen 3s ease-in-out infinite;
+    flex: 1;
 }
 
 .btn-resume:hover:not(:disabled) {
