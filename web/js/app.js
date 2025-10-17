@@ -3446,9 +3446,73 @@ function updateJobStatusUI(status, caller = 'unknown') {
             // Populate error details
             const errorMessage = document.getElementById('error-message');
             const errorTimestamp = document.getElementById('error-timestamp');
+            const errorType = document.getElementById('error-type');
+            const errorTraceback = document.getElementById('error-traceback');
+            const errorConfigSnapshot = document.getElementById('error-config-snapshot');
+            const errorConfigContainer = document.getElementById('error-config-container');
+            const errorTechnicalSection = document.getElementById('error-technical-section');
 
             if (errorMessage && status.error) {
-                errorMessage.textContent = status.error;
+                // Check if error is structured object (new format) or string (old format)
+                if (typeof status.error === 'object' && status.error !== null) {
+                    // New structured error format
+                    errorMessage.textContent = status.error.message || 'An unexpected error occurred';
+
+                    // Show technical details section
+                    if (errorTechnicalSection) {
+                        errorTechnicalSection.style.display = 'block';
+                    }
+
+                    // Populate error type
+                    if (errorType) {
+                        errorType.textContent = status.error.type || 'Unknown';
+                    }
+
+                    // Populate traceback
+                    if (errorTraceback && status.error.traceback) {
+                        errorTraceback.textContent = status.error.traceback;
+                    }
+
+                    // Populate configuration snapshot if available
+                    if (status.error.config_snapshot && errorConfigSnapshot && errorConfigContainer) {
+                        const config = status.error.config_snapshot;
+                        let configHtml = '<ul class="config-list">';
+
+                        if (config.error) {
+                            configHtml += `<li><strong>Error:</strong> ${config.error}</li>`;
+                        } else {
+                            if (config.addon_urls_count !== undefined) {
+                                configHtml += `<li><strong>Addon URLs:</strong> ${config.addon_urls_count} configured</li>`;
+                            }
+                            if (config.catalogs_selected !== undefined) {
+                                configHtml += `<li><strong>Catalogs Selected:</strong> ${config.catalogs_selected}</li>`;
+                            }
+                            if (config.movies_global_limit !== undefined) {
+                                const moviesLimit = config.movies_global_limit === -1 ? 'Unlimited' : config.movies_global_limit;
+                                configHtml += `<li><strong>Movies Global Limit:</strong> ${moviesLimit}</li>`;
+                            }
+                            if (config.series_global_limit !== undefined) {
+                                const seriesLimit = config.series_global_limit === -1 ? 'Unlimited' : config.series_global_limit;
+                                configHtml += `<li><strong>Series Global Limit:</strong> ${seriesLimit}</li>`;
+                            }
+                            if (config.delay !== undefined) {
+                                configHtml += `<li><strong>Delay:</strong> ${config.delay}s</li>`;
+                            }
+                        }
+
+                        configHtml += '</ul>';
+                        errorConfigSnapshot.innerHTML = configHtml;
+                        errorConfigContainer.style.display = 'block';
+                    }
+                } else {
+                    // Old string format (backward compatibility)
+                    errorMessage.textContent = status.error;
+
+                    // Hide technical details section for old format
+                    if (errorTechnicalSection) {
+                        errorTechnicalSection.style.display = 'none';
+                    }
+                }
             }
 
             if (errorTimestamp && status.end_time) {
@@ -4072,6 +4136,88 @@ function dismissError() {
     addDebugLog(`[ERROR DISMISS] dismissError() called`);
     // Load actual status from backend (will show scheduled screen if schedules exist)
     loadJobStatus('dismissError');
+}
+
+function toggleTechnicalDetails() {
+    const content = document.getElementById('error-technical-content');
+    const label = document.getElementById('technical-details-label');
+    const button = document.querySelector('.error-expand-btn svg');
+
+    if (content && label) {
+        const isExpanded = content.style.display === 'block';
+
+        if (isExpanded) {
+            content.style.display = 'none';
+            label.textContent = 'Technical Details (click to expand)';
+            if (button) {
+                button.style.transform = 'rotate(0deg)';
+            }
+        } else {
+            content.style.display = 'block';
+            label.textContent = 'Technical Details (click to collapse)';
+            if (button) {
+                button.style.transform = 'rotate(90deg)';
+            }
+        }
+    }
+}
+
+function copyErrorDetails() {
+    const errorType = document.getElementById('error-type');
+    const errorMessage = document.getElementById('error-message');
+    const errorTraceback = document.getElementById('error-traceback');
+    const errorConfigSnapshot = document.getElementById('error-config-snapshot');
+    const errorTimestamp = document.getElementById('error-timestamp');
+
+    let textToCopy = '='.repeat(60) + '\n';
+    textToCopy += 'PREFETCH JOB ERROR DETAILS\n';
+    textToCopy += '='.repeat(60) + '\n\n';
+
+    if (errorTimestamp && errorTimestamp.textContent) {
+        textToCopy += errorTimestamp.textContent + '\n\n';
+    }
+
+    if (errorType && errorType.textContent !== '-') {
+        textToCopy += 'Error Type: ' + errorType.textContent + '\n\n';
+    }
+
+    if (errorMessage && errorMessage.textContent) {
+        textToCopy += 'Error Message:\n' + errorMessage.textContent + '\n\n';
+    }
+
+    if (errorTraceback && errorTraceback.textContent && errorTraceback.textContent !== 'No traceback available') {
+        textToCopy += 'Stack Trace:\n' + errorTraceback.textContent + '\n\n';
+    }
+
+    if (errorConfigSnapshot && errorConfigSnapshot.textContent) {
+        textToCopy += 'Configuration Context:\n';
+        // Extract text from HTML list
+        const configList = errorConfigSnapshot.querySelectorAll('li');
+        configList.forEach(item => {
+            textToCopy += '  - ' + item.textContent + '\n';
+        });
+        textToCopy += '\n';
+    }
+
+    textToCopy += '='.repeat(60);
+
+    // Copy to clipboard
+    navigator.clipboard.writeText(textToCopy).then(() => {
+        // Show visual feedback
+        const button = document.querySelector('.btn-copy-error');
+        if (button) {
+            const originalText = button.innerHTML;
+            button.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Copied!';
+            button.style.background = 'var(--success)';
+            setTimeout(() => {
+                button.innerHTML = originalText;
+                button.style.background = '';
+            }, 2000);
+        }
+    }).catch(err => {
+        console.error('Failed to copy error details:', err);
+        alert('Failed to copy error details to clipboard');
+    });
 }
 
 // ============================================================================

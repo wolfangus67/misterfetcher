@@ -1038,6 +1038,40 @@ Default: <strong>Disabled</strong>"><svg viewBox="0 0 24 24" fill="none" stroke=
                             <li>Check container logs for detailed error information</li>
                         </ul>
                     </div>
+
+                    <!-- Technical Details Section -->
+                    <div class="error-technical-section" id="error-technical-section" style="display: none;">
+                        <button type="button" class="error-expand-btn" onclick="toggleTechnicalDetails()">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 18l6-6-6-6"></path>
+                            </svg>
+                            <span id="technical-details-label">Technical Details (click to expand)</span>
+                        </button>
+                        <div class="error-technical-content" id="error-technical-content" style="display: none;">
+                            <div class="error-type-display">
+                                <strong>Error Type:</strong> <span id="error-type">-</span>
+                            </div>
+                            <div class="error-traceback-container">
+                                <div class="error-traceback-header">
+                                    <strong>Stack Trace:</strong>
+                                </div>
+                                <pre id="error-traceback" class="error-traceback">No traceback available</pre>
+                            </div>
+                            <div class="error-config-container" id="error-config-container" style="display: none;">
+                                <div class="error-config-header">
+                                    <strong>Configuration Context:</strong>
+                                </div>
+                                <div id="error-config-snapshot" class="error-config-snapshot"></div>
+                            </div>
+                            <button type="button" class="btn-copy-error" onclick="copyErrorDetails()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                                Copy All Error Details
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Action Button -->

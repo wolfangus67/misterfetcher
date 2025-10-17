@@ -9,6 +9,7 @@ import sys
 import io
 import ctypes
 import os
+import traceback
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, Callable
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -392,12 +393,44 @@ class JobScheduler:
 
             self.job_status = JobStatus.FAILED
             self.job_end_time = time.time()
-            self.job_error = str(e)
+
+            # Capture comprehensive error information
+            error_traceback = traceback.format_exc()
+            error_type = type(e).__name__
+            error_message = str(e)
+
+            # Get configuration snapshot for debugging context
+            try:
+                config = self.config_manager.get_all()
+                saved_catalogs = config.get('saved_catalogs', [])
+                enabled_catalogs = [cat for cat in saved_catalogs if cat.get('enabled', False)]
+
+                config_snapshot = {
+                    'addon_urls_count': len(config.get('addon_urls', [])),
+                    'catalogs_selected': len(enabled_catalogs),
+                    'movies_global_limit': config.get('movies_global_limit', -1),
+                    'series_global_limit': config.get('series_global_limit', -1),
+                    'movies_per_catalog': config.get('movies_per_catalog', -1),
+                    'series_per_catalog': config.get('series_per_catalog', -1),
+                    'delay': config.get('delay', 0),
+                    'cache_validity': config.get('cache_validity', 259200)
+                }
+            except Exception:
+                config_snapshot = {'error': 'Could not capture configuration'}
+
+            # Store structured error information
+            self.job_error = {
+                'type': error_type,
+                'message': error_message,
+                'traceback': error_traceback,
+                'config_snapshot': config_snapshot
+            }
 
             logger.error("=" * 60)
             logger.error("PREFETCH JOB FAILED")
             logger.error("=" * 60)
-            logger.error(f"Error: {self.job_error}")
+            logger.error(f"Error Type: {error_type}")
+            logger.error(f"Error Message: {error_message}")
             logger.exception(e)
             logger.error("=" * 60)
 
