@@ -20,6 +20,10 @@ import re
 from datetime import datetime, timezone
 from urllib.parse import urljoin, quote
 from typing import List, Dict, Any, Optional, Tuple
+from logger import get_logger
+
+# Initialize logger for this module
+logger = get_logger('streams_prefetcher')
 
 def get_terminal_size() -> int:
     """Safely get terminal width with a fallback."""
@@ -740,6 +744,7 @@ class StreamsPrefetcher:
         try:
             os.makedirs(os.path.dirname(self.db_name), exist_ok=True)
             self.db_conn = sqlite3.connect(self.db_name, check_same_thread=False)
+            logger.info(f"Connected to cache database: {self.db_name}")
             cursor = self.db_conn.cursor()
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS cache (
@@ -751,27 +756,40 @@ class StreamsPrefetcher:
             cursor.execute("PRAGMA table_info(cache)")
             columns = [column[1] for column in cursor.fetchall()]
             if 'title_name' not in columns:
+                logger.info("Adding 'title_name' column to cache table (migration)")
                 cursor.execute("ALTER TABLE cache ADD COLUMN title_name TEXT")
             self.db_conn.commit()
+
+            # Log cache statistics
+            cursor.execute("SELECT COUNT(*) FROM cache")
+            total_entries = cursor.fetchone()[0]
+            logger.debug(f"Cache contains {total_entries} entries")
         except sqlite3.Error as e:
-            print(f"SQLite error during cache setup: {e}")
+            logger.critical(f"Failed to setup cache database: {e}", exc_info=True)
             self.db_conn = None
 
     def is_cache_valid(self, imdb_id: str) -> bool:
         """Checks if an IMDb ID is in the cache and if its timestamp is still valid."""
-        if not self.db_conn: return False
+        if not self.db_conn:
+            logger.debug(f"Cache lookup skipped (no database connection): {imdb_id}")
+            return False
         cursor = self.db_conn.cursor()
         cursor.execute("SELECT timestamp FROM cache WHERE imdb_id = ?", (imdb_id,))
         row = cursor.fetchone()
-        return row and (time.time() - row[0]) < self.cache_validity_seconds
+        is_valid = row and (time.time() - row[0]) < self.cache_validity_seconds
+        logger.debug(f"Cache lookup {imdb_id}: {'HIT' if is_valid else 'MISS'}")
+        return is_valid
 
     def update_cache(self, imdb_id: str, title_name: str):
         """Updates or inserts an item with its title and the current timestamp in the cache."""
-        if not self.db_conn: return
+        if not self.db_conn:
+            logger.warning(f"Cache update skipped (no database connection): {imdb_id}")
+            return
         current_time = time.time()
         cursor = self.db_conn.cursor()
         cursor.execute("INSERT OR REPLACE INTO cache (imdb_id, timestamp, title_name) VALUES (?, ?, ?)", (imdb_id, current_time, title_name))
         self.db_conn.commit()
+        logger.debug(f"Cache updated: {imdb_id} ({title_name})")
 
     def initialize_results(self) -> Dict[str, Any]:
         return {
@@ -793,13 +811,27 @@ class StreamsPrefetcher:
         }
 
     def make_request(self, url: str) -> Optional[Dict[Any, Any]]:
+        start_time = time.time()
         try:
+            logger.debug(f"HTTP GET {url} (timeout={self.network_request_timeout}s)")
             response = self.session.get(url, timeout=self.network_request_timeout)
             response.raise_for_status()
             data = response.json()
+            duration_ms = (time.time() - start_time) * 1000
+            content_size = len(response.content) if hasattr(response, 'content') else 0
+            logger.debug(f"HTTP 200 OK ({duration_ms:.0f}ms, {content_size/1024:.1f} KB)")
             time.sleep(self.delay)
             return data
-        except (requests.exceptions.RequestException, json.JSONDecodeError):
+        except requests.exceptions.Timeout as e:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error(f"HTTP request timeout after {duration_ms:.0f}ms: {url}")
+            return None
+        except requests.exceptions.RequestException as e:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error(f"HTTP request failed ({duration_ms:.0f}ms): {url} - {type(e).__name__}: {str(e)}")
+            return None
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode error for {url}: {str(e)}")
             return None
         finally:
             # Explicitly close response to free memory
@@ -807,13 +839,15 @@ class StreamsPrefetcher:
                 response.close()
 
     def get_catalogs(self, catalog_addon_url: str) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], int]:
+        logger.info(f"Fetching catalogs from addon: {catalog_addon_url}")
         manifest = self.make_request(f"{catalog_addon_url}/manifest.json")
         if not manifest or 'catalogs' not in manifest:
+            logger.warning(f"No catalogs found in manifest for: {catalog_addon_url}")
             return [], [], 0
 
         all_catalogs = manifest.get('catalogs', [])
         included_catalogs, skipped_catalogs = [], []
-        
+
         for catalog in all_catalogs:
             extras = catalog.get('extra', [])
             catalog_type = catalog.get('type', '').lower()
@@ -821,11 +855,14 @@ class StreamsPrefetcher:
 
             if is_only_search_catalog:
                 skipped_catalogs.append({'catalog': catalog, 'reason': "Search-only"})
+                logger.debug(f"Skipping search-only catalog: {catalog.get('name', 'Unknown')}")
             elif catalog_type in ['tv', 'channel']:
                 skipped_catalogs.append({'catalog': catalog, 'reason': f"Unsupported type '{catalog_type}'"})
+                logger.debug(f"Skipping unsupported type catalog: {catalog.get('name', 'Unknown')} (type={catalog_type})")
             else:
                 included_catalogs.append(catalog)
-                
+
+        logger.info(f"Found {len(all_catalogs)} total catalogs: {len(included_catalogs)} included, {len(skipped_catalogs)} skipped")
         return included_catalogs, skipped_catalogs, len(all_catalogs)
 
     def get_catalog_type_display(self, catalog_info: Dict[str, Any]) -> str:
@@ -1357,7 +1394,11 @@ class StreamsPrefetcher:
                 'end_time': catalog_end_time
             }
             self.results['processed_catalogs'].append(catalog_result)
-            
+
+            # Log catalog completion
+            success_rate = (catalog_cache_requests_successful / catalog_cache_requests * 100) if catalog_cache_requests > 0 else 100.0
+            logger.info(f"Completed catalog '{cat_name}' ({cat_mode}): {success_count} prefetched, {cached_count} cached, {failed_count} failed ({self.format_duration(catalog_start_time, catalog_end_time)}, {success_rate:.1f}% success rate)")
+
             self.results['statistics']['cached_count'] += cached_count
             self.progress_tracker.finish_catalog_processing(success_count, failed_count, cached_count, catalog_name=cat_name)
             
