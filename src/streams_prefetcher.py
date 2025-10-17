@@ -603,6 +603,9 @@ class StreamsPrefetcher:
         self.prefetched_episodes_count = 0
         self.prefetched_cached_count = 0
 
+        # Track in-progress request to handle cancellation correctly
+        self.in_progress_request = False
+
         # Dashboard auto-refresh throttling
         self._last_dashboard_redraw = 0.0
         self._min_redraw_interval = 0.1  # 100ms = max 10 redraws/second
@@ -936,13 +939,20 @@ class StreamsPrefetcher:
 
     def _prefetch_single_stream(self, content_id: str, content_type: str, stream_addon_url: str, title: str = "") -> bool:
         stream_url = f"{stream_addon_url}/stream/{content_type}/{content_id}.json"
+
+        # Mark request as in-progress BEFORE incrementing counter
+        self.in_progress_request = True
         self.results['statistics']['cache_requests_made'] += 1
+
         response = None
         try:
             response = self.session.get(stream_url, timeout=self.network_request_timeout)
             response.raise_for_status()
             time.sleep(self.delay)
             self.results['statistics']['cache_requests_successful'] += 1
+
+            # Clear in-progress flag after successful completion
+            self.in_progress_request = False
 
             # Cache uncached streams feature
             if self.cache_uncached_streams_enabled:
@@ -1026,8 +1036,17 @@ class StreamsPrefetcher:
             return True
         except requests.exceptions.RequestException:
             self.results['statistics']['errors'] += 1
+
+            # Clear in-progress flag on failure
+            self.in_progress_request = False
             return False
         finally:
+            # If request is still marked as in-progress, it means we were interrupted (KeyboardInterrupt)
+            # Decrement the counter to exclude this incomplete request from stats
+            if self.in_progress_request:
+                self.results['statistics']['cache_requests_made'] -= 1
+                self.in_progress_request = False
+
             # Explicitly close response to free memory
             if response is not None:
                 response.close()
