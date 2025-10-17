@@ -5,6 +5,28 @@ All notable changes to Streams Prefetcher will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.7] - 2025-10-17
+
+### Fixed
+- Poster crossfade animation during fast prefetching
+  - Implemented dual poster system with simultaneous crossfading
+  - Eliminates lag when items are cached and process rapidly (100-200ms intervals)
+  - New posters load invisibly in background while current poster remains visible
+  - Smooth 800ms transition between posters handles both rapid and slow processing speeds
+- Catalog filtering now properly distinguishes between movie and series catalogs with same manifest ID
+  - Uses composite key (addon_url|catalog_id|catalog_type) for accurate filtering
+  - Prevents catalog selection conflicts when addons have identically named movie/series catalogs
+- UI button resizing during countdown animations
+  - Added flex-shrink prevention to maintain consistent button sizes
+  - Buttons no longer change size during long-press countdown operations
+- Poster hiding issues during rapid prefetching
+  - Improved poster visibility logic to prevent premature hiding
+  - Better handling of rapid item transitions
+
+### Changed
+- Increased poster crossfade duration from 500ms to 800ms for more cinematic transition
+- Removed unused PORT environment variable and synchronized configuration
+
 ## [0.12.6] - 2025-10-15
 
 ### Changed
