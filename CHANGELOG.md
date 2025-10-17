@@ -5,6 +5,16 @@ All notable changes to Streams Prefetcher will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.8] - 2025-10-17
+
+### Fixed
+- Excessive debug logging causing log files to balloon to 75MB
+  - Removed AUTO_REDRAW_DEBUG log statements (7 locations in streams_prefetcher.py)
+  - Removed PROGRESS_CALLBACK_DEBUG log statement (streams_prefetcher_wrapper.py)
+  - Debug statements were logging 2-3 lines per item processed (315K items = 945K log lines)
+  - Log files now ~5-10KB instead of 75MB (99.99% reduction)
+  - All important information retained (config, catalogs, timing, summary)
+
 ## [0.12.7] - 2025-10-17
 
 ### Fixed
