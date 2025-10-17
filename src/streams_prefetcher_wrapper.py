@@ -156,10 +156,6 @@ class StreamsPrefetcherWrapper:
                 mode = kwargs.get('mode', 'idle')
                 cached_count = kwargs.get('prefetched_cached_count', 0)
 
-                # Log callback trigger
-                if self.prefetcher.log_file:
-                    self.prefetcher._log(f"[PROGRESS_CALLBACK_DEBUG] Triggering callback: mode={mode}, cached_count={cached_count}")
-
                 # Build comprehensive progress data
                 progress_data = {
                     'catalog_name': kwargs.get('catalog_name', ''),
