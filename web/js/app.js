@@ -29,6 +29,7 @@ let currentCompletionId = null; // Track current completion to handle dismissal
 let jobTerminationRequested = false; // Track if user requested termination
 let currentPosterLoadingId = null; // Track which poster is currently being loaded to cancel stale updates
 let posterFadeTimeout = null; // Track fade animation timeout for cancellation
+let activePosterIndex = 1; // Track which poster element is currently active (1 or 2) for crossfade
 
 // ============================================================================
 // Debug Logging (Mobile-Friendly)
@@ -3796,7 +3797,14 @@ function updateRPDBPoster(imdbId, fullTitle) {
     addDebugLog(`[RPDB] updateRPDBPoster called - IMDb ID: ${imdbId}, Title: ${fullTitle}`);
 
     const container = document.getElementById('currently-prefetching');
-    const posterImg = document.getElementById('current-poster');
+
+    // Get both poster elements
+    const poster1 = document.getElementById('current-poster-1');
+    const poster2 = document.getElementById('current-poster-2');
+
+    // Determine which poster is active and which is inactive
+    const activePoster = activePosterIndex === 1 ? poster1 : poster2;
+    const inactivePoster = activePosterIndex === 1 ? poster2 : poster1;
     const titleYearEl = document.getElementById('current-item-title-year');
     const episodeEl = document.getElementById('current-item-episode');
     const typeBadgeEl = document.getElementById('current-item-type');
@@ -3855,8 +3863,8 @@ function updateRPDBPoster(imdbId, fullTitle) {
         addDebugLog('[RPDB] Cancelled pending fade animation');
     }
 
-    // Check if this is the same poster as currently displayed
-    const currentBaseImdbId = posterImg.dataset.currentImdbId;
+    // Check if this is the same poster as currently displayed in active poster
+    const currentBaseImdbId = activePoster.dataset.currentImdbId;
     if (currentBaseImdbId === baseImdbId && currentPosterLoadingId === baseImdbId) {
         addDebugLog(`[RPDB] Same series/movie - skipping poster reload (${baseImdbId})`);
         return; // Don't reload the same poster
@@ -3864,13 +3872,7 @@ function updateRPDBPoster(imdbId, fullTitle) {
 
     // Mark this poster as the active one being loaded
     currentPosterLoadingId = baseImdbId;
-    addDebugLog(`[RPDB] Set currentPosterLoadingId to ${baseImdbId}`);
-
-    // Immediately start fading out current poster if visible (don't wait)
-    if (posterImg.classList.contains('visible')) {
-        posterImg.classList.remove('visible'); // CSS transition handles fade
-        addDebugLog('[RPDB] Started immediate fade-out of current poster');
-    }
+    addDebugLog(`[RPDB] Set currentPosterLoadingId to ${baseImdbId}, loading into poster ${activePosterIndex === 1 ? 2 : 1}`);
 
     // Build RPDB URL
     const rpdbApiKey = 't0-free-rpdb';
@@ -3879,55 +3881,57 @@ function updateRPDBPoster(imdbId, fullTitle) {
     addDebugLog(`[RPDB] Original ID: ${imdbId}, Base ID: ${baseImdbId}`);
     addDebugLog(`[RPDB] Fetching poster: ${posterUrl}`);
 
-    // Function to load the new poster
-    const loadNewPoster = () => {
-        // Load poster (don't cache - add timestamp to prevent browser caching)
-        posterImg.onload = function() {
-            // Check if this load is stale (another item has started loading)
-            if (currentPosterLoadingId !== baseImdbId) {
-                addDebugLog(`[RPDB] ⏭️ Stale poster load ignored (wanted: ${currentPosterLoadingId}, got: ${baseImdbId})`);
-                return;
+    // Load the new poster into the inactive poster element
+    inactivePoster.onload = function() {
+        // Check if this load is stale (another item has started loading)
+        if (currentPosterLoadingId !== baseImdbId) {
+            addDebugLog(`[RPDB] ⏭️ Stale poster load ignored (wanted: ${currentPosterLoadingId}, got: ${baseImdbId})`);
+            return;
+        }
+
+        addDebugLog(`[RPDB] ✅ Poster loaded successfully (${inactivePoster.naturalWidth}x${inactivePoster.naturalHeight})`);
+
+        // Store the current base IMDb ID to prevent reloading same poster
+        inactivePoster.dataset.currentImdbId = baseImdbId;
+        inactivePoster.style.display = 'block';
+
+        // Crossfade: simultaneously fade out active, fade in inactive
+        setTimeout(() => {
+            addDebugLog('[RPDB] Starting crossfade animation');
+            // Fade out currently active poster
+            if (activePoster.classList.contains('visible')) {
+                activePoster.classList.remove('visible');
             }
+            // Fade in newly loaded poster
+            inactivePoster.classList.add('visible');
 
-            addDebugLog(`[RPDB] ✅ Poster loaded successfully (${posterImg.naturalWidth}x${posterImg.naturalHeight})`);
-            posterImg.style.display = 'block';
-            // Store the current base IMDb ID to prevent reloading same poster
-            posterImg.dataset.currentImdbId = baseImdbId;
-            // Trigger fade in after display is set
-            setTimeout(() => {
-                posterImg.classList.add('visible');
-            }, 10);
-        };
-
-        posterImg.onerror = function(e) {
-            // Check if this error is for a stale load
-            if (currentPosterLoadingId !== baseImdbId) {
-                addDebugLog(`[RPDB] ⏭️ Stale poster error ignored (wanted: ${currentPosterLoadingId}, got: ${baseImdbId})`);
-                return;
-            }
-
-            addDebugLog(`[RPDB] ❌ Poster failed to load: ${posterUrl}`);
-            addDebugLog(`[RPDB] Error type: ${e.type}, target: ${e.target.tagName}`);
-            // Try without cache-busting to see if that helps
-            if (posterImg.src.includes('?t=')) {
-                addDebugLog('[RPDB] Retrying without cache-busting parameter...');
-                posterImg.src = posterUrl;
-            } else {
-                // Hide poster if load fails
-                posterImg.classList.remove('visible');
-                setTimeout(() => {
-                    posterImg.style.display = 'none';
-                }, 500);
-            }
-        };
-
-        // Set source with cache-busting parameter
-        posterImg.src = posterUrl + '?t=' + Date.now();
+            // Swap active/inactive indices
+            activePosterIndex = activePosterIndex === 1 ? 2 : 1;
+            addDebugLog(`[RPDB] Crossfade started, active poster is now ${activePosterIndex}`);
+        }, 10);
     };
 
-    // Always start loading immediately (fade happens via CSS above)
-    // CSS opacity transition handles all fading - don't manually hide
-    loadNewPoster();
+    inactivePoster.onerror = function(e) {
+        // Check if this error is for a stale load
+        if (currentPosterLoadingId !== baseImdbId) {
+            addDebugLog(`[RPDB] ⏭️ Stale poster error ignored (wanted: ${currentPosterLoadingId}, got: ${baseImdbId})`);
+            return;
+        }
+
+        addDebugLog(`[RPDB] ❌ Poster failed to load: ${posterUrl}`);
+        addDebugLog(`[RPDB] Error type: ${e.type}, target: ${e.target.tagName}`);
+        // Try without cache-busting to see if that helps
+        if (inactivePoster.src.includes('?t=')) {
+            addDebugLog('[RPDB] Retrying without cache-busting parameter...');
+            inactivePoster.src = posterUrl;
+        } else {
+            // Keep current poster visible if load fails, don't swap
+            addDebugLog('[RPDB] Poster load failed, keeping current poster visible');
+        }
+    };
+
+    // Set source with cache-busting parameter to start loading
+    inactivePoster.src = posterUrl + '?t=' + Date.now();
 }
 
 /**
@@ -3935,7 +3939,8 @@ function updateRPDBPoster(imdbId, fullTitle) {
  */
 function hideRPDBPoster() {
     const container = document.getElementById('currently-prefetching');
-    const posterImg = document.getElementById('current-poster');
+    const poster1 = document.getElementById('current-poster-1');
+    const poster2 = document.getElementById('current-poster-2');
 
     // Cancel any pending fade timeout
     if (posterFadeTimeout) {
@@ -3946,10 +3951,17 @@ function hideRPDBPoster() {
     // Clear the current loading ID
     currentPosterLoadingId = null;
 
-    // Remove visible class and hide container
-    posterImg.classList.remove('visible');
-    // Clear the stored IMDb ID
-    delete posterImg.dataset.currentImdbId;
+    // Remove visible class from both posters and hide container
+    poster1.classList.remove('visible');
+    poster2.classList.remove('visible');
+
+    // Clear the stored IMDb IDs
+    delete poster1.dataset.currentImdbId;
+    delete poster2.dataset.currentImdbId;
+
+    // Reset active poster index
+    activePosterIndex = 1;
+
     container.style.display = 'none';
 }
 
