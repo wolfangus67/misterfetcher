@@ -504,6 +504,11 @@ class JobScheduler:
     def cancel_job(self):
         """Cancel running, pausing, or paused job by injecting KeyboardInterrupt into the thread"""
         if (self.job_status in [JobStatus.RUNNING, JobStatus.PAUSING, JobStatus.PAUSED, JobStatus.RESUMING]) and self.job_thread and self.job_thread.is_alive():
+            # If job is paused, unblock the wait() so KeyboardInterrupt can be caught
+            if self.job_status == JobStatus.PAUSED:
+                self.pause_event.set()
+                logger.info("Unblocking paused thread for cancellation")
+
             # Inject KeyboardInterrupt into the running thread
             # This allows the wrapper to catch it and return partial results
             try:

@@ -1278,13 +1278,24 @@ class StreamsPrefetcher:
                             current_item_type='movie',
                             **dashboard_args
                         )
-                        if not imdb_id: failed_count += 1; item_statuses_on_page.append('failed'); continue
+                        if not imdb_id:
+                            failed_count += 1
+                            item_statuses_on_page.append('failed')
+                            # Check if pause was requested
+                            if self.scheduler and self.scheduler.pause_requested:
+                                self.scheduler.complete_pause()
+                                self.scheduler.pause_event.wait()
+                            continue
                         if self.is_cache_valid(imdb_id):
                             cached_count += 1
                             self.prefetched_cached_count += 1
                             item_statuses_on_page.append('cached')
                             self._current_dashboard_args = dashboard_args
                             self._auto_redraw_dashboard()
+                            # Check if pause was requested
+                            if self.scheduler and self.scheduler.pause_requested:
+                                self.scheduler.complete_pause()
+                                self.scheduler.pause_event.wait()
                             continue
 
                         # Check if pause was requested BEFORE prefetching (after showing UI)
@@ -1313,7 +1324,14 @@ class StreamsPrefetcher:
                             current_item_type='series',
                             **dashboard_args
                         )
-                        if not series_imdb_id: failed_count += 1; item_statuses_on_page.append('failed'); continue
+                        if not series_imdb_id:
+                            failed_count += 1
+                            item_statuses_on_page.append('failed')
+                            # Check if pause was requested
+                            if self.scheduler and self.scheduler.pause_requested:
+                                self.scheduler.complete_pause()
+                                self.scheduler.pause_event.wait()
+                            continue
 
                         # Check if pause was requested BEFORE prefetching (after showing UI)
                         if self.scheduler and self.scheduler.pause_requested:
@@ -1324,7 +1342,14 @@ class StreamsPrefetcher:
                             self.scheduler.pause_event.wait()
 
                         episodes = self.get_series_episodes(series_imdb_id, cat_addon_url)
-                        if not episodes: failed_count += 1; item_statuses_on_page.append('failed'); continue
+                        if not episodes:
+                            failed_count += 1
+                            item_statuses_on_page.append('failed')
+                            # Check if pause was requested
+                            if self.scheduler and self.scheduler.pause_requested:
+                                self.scheduler.complete_pause()
+                                self.scheduler.pause_event.wait()
+                            continue
                         self.results['statistics']['episodes_found'] += len(episodes)
                         cached_episodes = sum(1 for ep in episodes if self.is_cache_valid(ep['id']))
                         if (cached_episodes / len(episodes)) >= 0.75:
@@ -1333,6 +1358,10 @@ class StreamsPrefetcher:
                             item_statuses_on_page.append('cached')
                             self._current_dashboard_args = dashboard_args
                             self._auto_redraw_dashboard()
+                            # Check if pause was requested
+                            if self.scheduler and self.scheduler.pause_requested:
+                                self.scheduler.complete_pause()
+                                self.scheduler.pause_event.wait()
                             continue
                         series_had_success = False
                         for ep in episodes:
@@ -1340,7 +1369,12 @@ class StreamsPrefetcher:
                             if self.scheduler:
                                 self.scheduler.pause_event.wait()  # Blocks if paused, returns immediately if not
 
-                            if self.is_cache_valid(ep['id']): continue
+                            if self.is_cache_valid(ep['id']):
+                                # Check if pause was requested
+                                if self.scheduler and self.scheduler.pause_requested:
+                                    self.scheduler.complete_pause()
+                                    self.scheduler.pause_event.wait()
+                                continue
 
                             ep_title = self.get_formatted_episode_title(item, ep['season'], ep['episode'])
                             dashboard_args['item_statuses'] = item_statuses_on_page # Ensure dashboard has latest statuses
