@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from urllib.parse import urljoin, quote
 from typing import List, Dict, Any, Optional, Tuple
 from logger import get_logger
+from item import Item
 
 # Initialize logger for this module
 logger = get_logger('streams_prefetcher')
@@ -768,28 +769,90 @@ class StreamsPrefetcher:
             logger.critical(f"Failed to setup cache database: {e}", exc_info=True)
             self.db_conn = None
 
-    def is_cache_valid(self, imdb_id: str) -> bool:
-        """Checks if an IMDb ID is in the cache and if its timestamp is still valid."""
+    def is_cache_valid(self, item: Item) -> bool:
+        """Checks if an Item is in the cache and if its timestamp is still valid."""
         if not self.db_conn:
-            logger.debug(f"Cache lookup skipped (no database connection): {imdb_id}")
+            log_msg = f"Cache lookup skipped (no database connection): {item.get_logging_text()}"
+            if os.getenv('LOG_FORMAT') == 'json':
+                log_extra = {
+                    'event': 'cache_lookup_skipped',
+                    'reason': 'no_database_connection',
+                    'item_title': item.title,
+                    'item_year': item.year,
+                    'item_type': item.item_type,
+                    'item_id': item.imdb_id,
+                    'episode_info': item.get_episode_info() or None
+                }
+                logger.debug(log_msg, extra=log_extra)
+            else:
+                logger.debug(log_msg)
             return False
+
         cursor = self.db_conn.cursor()
-        cursor.execute("SELECT timestamp FROM cache WHERE imdb_id = ?", (imdb_id,))
+        cursor.execute("SELECT timestamp FROM cache WHERE imdb_id = ?", (item.imdb_id,))
         row = cursor.fetchone()
         is_valid = row and (time.time() - row[0]) < self.cache_validity_seconds
-        logger.debug(f"Cache lookup {imdb_id}: {'HIT' if is_valid else 'MISS'}")
+
+        status = 'HIT' if is_valid else 'MISS'
+        log_msg = f"Cache lookup {status}: {item.get_logging_text()}"
+
+        if os.getenv('LOG_FORMAT') == 'json':
+            log_extra = {
+                'event': 'cache_lookup',
+                'status': status.lower(),
+                'cache_valid': is_valid,
+                'item_title': item.title,
+                'item_year': item.year,
+                'item_type': item.item_type,
+                'item_id': item.imdb_id,
+                'episode_info': item.get_episode_info() or None
+            }
+            logger.debug(log_msg, extra=log_extra)
+        else:
+            logger.debug(log_msg)
+
         return is_valid
 
-    def update_cache(self, imdb_id: str, title_name: str):
+    def update_cache(self, item: Item):
         """Updates or inserts an item with its title and the current timestamp in the cache."""
         if not self.db_conn:
-            logger.warning(f"Cache update skipped (no database connection): {imdb_id}")
+            log_msg = f"Cache update skipped (no database connection): {item.get_logging_text()}"
+            if os.getenv('LOG_FORMAT') == 'json':
+                log_extra = {
+                    'event': 'cache_update_skipped',
+                    'reason': 'no_database_connection',
+                    'item_title': item.title,
+                    'item_year': item.year,
+                    'item_type': item.item_type,
+                    'item_id': item.imdb_id,
+                    'episode_info': item.get_episode_info() or None
+                }
+                logger.warning(log_msg, extra=log_extra)
+            else:
+                logger.warning(log_msg)
             return
+
         current_time = time.time()
         cursor = self.db_conn.cursor()
-        cursor.execute("INSERT OR REPLACE INTO cache (imdb_id, timestamp, title_name) VALUES (?, ?, ?)", (imdb_id, current_time, title_name))
+        cursor.execute("INSERT OR REPLACE INTO cache (imdb_id, timestamp, title_name) VALUES (?, ?, ?)",
+                      (item.imdb_id, current_time, item.get_cache_title()))
         self.db_conn.commit()
-        logger.debug(f"Cache updated: {imdb_id} ({title_name})")
+
+        log_msg = f"Cache updated: {item.get_logging_text()}"
+
+        if os.getenv('LOG_FORMAT') == 'json':
+            log_extra = {
+                'event': 'cache_updated',
+                'cache_timestamp': current_time,
+                'item_title': item.title,
+                'item_year': item.year,
+                'item_type': item.item_type,
+                'item_id': item.imdb_id,
+                'episode_info': item.get_episode_info() or None
+            }
+            logger.debug(log_msg, extra=log_extra)
+        else:
+            logger.debug(log_msg)
 
     def initialize_results(self) -> Dict[str, Any]:
         return {
@@ -910,51 +973,22 @@ class StreamsPrefetcher:
             print(f"  | {row[0]:<{col_widths[0]}} | {row[1]:<{col_widths[1]}} | {row[2]:<{col_widths[2]}} |")
         print("  " + "_" * table_width)
 
-    def extract_imdb_id(self, item: Dict[str, Any]) -> Optional[str]:
-        for key in ['imdb_id', 'id']:
-            item_id = item.get(key)
-            if item_id and isinstance(item_id, str) and item_id.startswith('tt'):
-                return item_id
-        return None
+    
+    
+    def create_episode_item(self, series_item: Item, episode_data: Dict[str, Any]) -> Item:
+        """Create an episode Item from a series Item and episode data"""
+        return Item(
+            imdb_id=episode_data['id'],
+            title=series_item.title,
+            year=series_item.year,
+            item_type='episode',
+            season=episode_data['season'],
+            episode=episode_data['episode'],
+            series_imdb_id=series_item.imdb_id
+        )
 
-    def get_title_from_item(self, item: Dict[str, Any]) -> str:
-        title = item.get('name', item.get('title', 'Unknown Title')).strip()
-        year = item.get('year')
-        released = item.get('released')
-        
-        # Try to get year from different fields
-        year_to_use = None
-        if year:
-            year_to_use = str(year)
-        elif released:
-            # Extract year from released date (format like "2016-01-01")
-            try:
-                year_to_use = str(released)[:4] if len(str(released)) >= 4 else None
-            except:
-                pass
-        
-        return f"{title} ({year_to_use})" if year_to_use else title
-
-    def get_formatted_episode_title(self, series_item: Dict[str, Any], season: int, episode: int) -> str:
-        title = series_item.get('name', series_item.get('title', 'Unknown Series')).strip()
-        year = series_item.get('year')
-        released = series_item.get('released')
-        
-        # Try to get year from different fields
-        year_to_use = None
-        if year:
-            year_to_use = str(year)
-        elif released:
-            # Extract year from released date
-            try:
-                year_to_use = str(released)[:4] if len(str(released)) >= 4 else None
-            except:
-                pass
-        
-        year_str = f" ({year_to_use})" if year_to_use else ""
-        episode_str = f"S{str(season).zfill(2)}E{str(episode).zfill(2)}"
-        return f"{title}{year_str} {episode_str}"
-
+    
+    
     def get_series_episodes(self, series_imdb_id: str, catalog_addon_url: str) -> List[Dict[str, Any]]:
         meta_url = f"{catalog_addon_url}/meta/series/{series_imdb_id}.json"
         meta_data = self.make_request(meta_url)
@@ -963,11 +997,33 @@ class StreamsPrefetcher:
         return [{'id': f"{series_imdb_id}:{v['season']}:{v['episode']}", 'season': v['season'], 'episode': v['episode']}
                 for v in videos if 'season' in v and 'episode' in v]
 
-    def prefetch_streams(self, content_id: str, content_type: str, title: str = "") -> bool:
-        return any(self._prefetch_single_stream(content_id, content_type, url, title) for url in self.stream_urls)
+    def prefetch_streams(self, item: Item) -> bool:
+        """Prefetch streams for a given Item (movie, series, or episode)"""
+        content_id = item.get_content_id()
+        content_type = 'series' if item.is_episode() else item.item_type
 
-    def _prefetch_single_stream(self, content_id: str, content_type: str, stream_addon_url: str, title: str = "") -> bool:
+        return any(self._prefetch_single_stream(content_id, content_type, url, item) for url in self.stream_urls)
+
+    def _prefetch_single_stream(self, content_id: str, content_type: str, stream_addon_url: str, item: Item) -> bool:
+        """Prefetch from a single stream addon URL"""
         stream_url = f"{stream_addon_url}/stream/{content_type}/{content_id}.json"
+
+        # Log the prefetch attempt
+        if os.getenv('LOG_LEVEL') == 'DEBUG':
+            log_msg = f"Prefetching streams: {item.get_logging_text()} from {stream_addon_url}"
+            if os.getenv('LOG_FORMAT') == 'json':
+                log_extra = {
+                    'event': 'stream_prefetch_attempt',
+                    'item_title': item.title,
+                    'item_year': item.year,
+                    'item_type': item.item_type,
+                    'item_id': item.imdb_id,
+                    'episode_info': item.get_episode_info() or None,
+                    'stream_url': stream_addon_url
+                }
+                logger.debug(log_msg, extra=log_extra)
+            else:
+                logger.debug(log_msg)
 
         # Mark request as in-progress BEFORE incrementing counter
         self.in_progress_request = True
@@ -1271,9 +1327,8 @@ class StreamsPrefetcher:
                     page_cached_count = 0
                     page_needs_prefetch = 0
                     for item in metas:
-                        item_type = item.get('type')
-                        imdb_id = self.extract_imdb_id(item)
-                        if imdb_id and self.is_cache_valid(imdb_id):
+                        item_obj = Item.from_catalog(item)
+                        if item_obj and self.is_cache_valid(item_obj):
                             page_cached_count += 1
                         else:
                             page_needs_prefetch += 1
@@ -1321,22 +1376,20 @@ class StreamsPrefetcher:
                     }
 
                     if item_type == 'movie':
-                        imdb_id, title = self.extract_imdb_id(item), self.get_title_from_item(item)
-                        self.progress_tracker.redraw_dashboard(
-                            current_title=f"Prefetching streams for Movie: {title}",
-                            current_imdb_id=imdb_id,
-                            current_item_type='movie',
-                            **dashboard_args
-                        )
-                        if not imdb_id:
+                        movie_item = Item.from_catalog(item, 'movie')
+                        if not movie_item:
                             failed_count += 1
                             item_statuses_on_page.append('failed')
-                            # Check if pause was requested
-                            if self.scheduler and self.scheduler.pause_requested:
-                                self.scheduler.complete_pause()
-                                self.scheduler.pause_event.wait()
                             continue
-                        if self.is_cache_valid(imdb_id):
+
+                        self.progress_tracker.redraw_dashboard(
+                            current_title=movie_item.get_dashboard_title(),
+                            current_imdb_id=movie_item.imdb_id,
+                            current_item_type=movie_item.item_type,
+                            **dashboard_args
+                        )
+
+                        if self.is_cache_valid(movie_item):
                             cached_count += 1
                             self.prefetched_cached_count += 1
                             item_statuses_on_page.append('cached')
@@ -1360,28 +1413,25 @@ class StreamsPrefetcher:
                         if self._check_time_limit():
                             break
 
-                        if self.prefetch_streams(imdb_id, 'movie', title):
-                            self.update_cache(imdb_id, title)
+                        if self.prefetch_streams(movie_item):
+                            self.update_cache(movie_item)
                             success_count += 1; prefetched_in_this_catalog += 1; self.prefetched_movies_count += 1
                             item_statuses_on_page.append('successful')
                         else: failed_count += 1; item_statuses_on_page.append('failed')
 
                     elif item_type == 'series':
-                        series_imdb_id, title = self.extract_imdb_id(item), self.get_title_from_item(item)
-                        self.progress_tracker.redraw_dashboard(
-                            current_title=f"Prefetching streams for Series: {title}",
-                            current_imdb_id=series_imdb_id,
-                            current_item_type='series',
-                            **dashboard_args
-                        )
-                        if not series_imdb_id:
+                        series_item = Item.from_catalog(item, 'series')
+                        if not series_item:
                             failed_count += 1
                             item_statuses_on_page.append('failed')
-                            # Check if pause was requested
-                            if self.scheduler and self.scheduler.pause_requested:
-                                self.scheduler.complete_pause()
-                                self.scheduler.pause_event.wait()
                             continue
+
+                        self.progress_tracker.redraw_dashboard(
+                            current_title=series_item.get_dashboard_title(),
+                            current_imdb_id=series_item.imdb_id,
+                            current_item_type=series_item.item_type,
+                            **dashboard_args
+                        )
 
                         # Check if pause was requested BEFORE prefetching (after showing UI)
                         if self.scheduler and self.scheduler.pause_requested:
@@ -1391,7 +1441,7 @@ class StreamsPrefetcher:
                             # This will block here until resumed
                             self.scheduler.pause_event.wait()
 
-                        episodes = self.get_series_episodes(series_imdb_id, cat_addon_url)
+                        episodes = self.get_series_episodes(series_item.get_series_imdb_id(), cat_addon_url)
                         if not episodes:
                             failed_count += 1
                             item_statuses_on_page.append('failed')
@@ -1401,8 +1451,15 @@ class StreamsPrefetcher:
                                 self.scheduler.pause_event.wait()
                             continue
                         self.results['statistics']['episodes_found'] += len(episodes)
-                        cached_episodes = sum(1 for ep in episodes if self.is_cache_valid(ep['id']))
-                        if (cached_episodes / len(episodes)) >= 0.75:
+
+                        # Check if series is already cached (75% threshold)
+                        cached_episodes = 0
+                        for ep in episodes:
+                            ep_item = self.create_episode_item(series_item, ep)
+                            if self.is_cache_valid(ep_item):
+                                cached_episodes += 1
+
+                        if len(episodes) > 0 and (cached_episodes / len(episodes)) >= 0.75:
                             cached_count += 1
                             self.prefetched_cached_count += 1
                             item_statuses_on_page.append('cached')
@@ -1413,25 +1470,28 @@ class StreamsPrefetcher:
                                 self.scheduler.complete_pause()
                                 self.scheduler.pause_event.wait()
                             continue
+
                         series_had_success = False
                         for ep in episodes:
                             # Check if paused BEFORE starting new episode (wait if paused)
                             if self.scheduler:
                                 self.scheduler.pause_event.wait()  # Blocks if paused, returns immediately if not
 
-                            if self.is_cache_valid(ep['id']):
+                            # Create episode Item
+                            ep_item = self.create_episode_item(series_item, ep)
+
+                            if self.is_cache_valid(ep_item):
                                 # Check if pause was requested
                                 if self.scheduler and self.scheduler.pause_requested:
                                     self.scheduler.complete_pause()
                                     self.scheduler.pause_event.wait()
                                 continue
 
-                            ep_title = self.get_formatted_episode_title(item, ep['season'], ep['episode'])
                             dashboard_args['item_statuses'] = item_statuses_on_page # Ensure dashboard has latest statuses
                             self.progress_tracker.redraw_dashboard(
-                                current_title=f"Prefetching streams for Series: {ep_title}",
-                                current_imdb_id=ep['id'],
-                                current_item_type='episode',
+                                current_title=ep_item.get_dashboard_title(),
+                                current_imdb_id=ep_item.imdb_id,
+                                current_item_type=ep_item.item_type,
                                 **dashboard_args
                             )
 
@@ -1447,8 +1507,8 @@ class StreamsPrefetcher:
                             if self._check_time_limit():
                                 break
 
-                            if self.prefetch_streams(ep['id'], 'series', ep_title):
-                               self.update_cache(ep['id'], ep_title); series_had_success = True; self.prefetched_episodes_count += 1
+                            if self.prefetch_streams(ep_item):
+                               self.update_cache(ep_item); series_had_success = True; self.prefetched_episodes_count += 1
 
                         if series_had_success:
                             success_count += 1; prefetched_in_this_catalog += 1; self.prefetched_series_count += 1
