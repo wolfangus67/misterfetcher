@@ -5,6 +5,18 @@ All notable changes to Streams Prefetcher will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.1] - 2025-10-17
+
+### Fixed
+- Pause functionality now works correctly when processing cached or failed items
+- Cancel button now responds immediately when job is paused (previously hung indefinitely)
+- Episode counts and statistics now display correctly on completion screen when jobs are canceled or interrupted (previously showed 0)
+- Partial results are properly captured and displayed when canceling paused jobs
+
+### Changed
+- Refactored statistics finalization into centralized methods for improved code maintainability
+- Simplified statistics population logic across all exit paths (normal, interrupted, exception)
+
 ## [0.13.0] - 2025-10-17
 
 ### Added
