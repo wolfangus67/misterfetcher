@@ -5,6 +5,20 @@ All notable changes to Streams Prefetcher will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2025-10-17
+
+### Added
+- Comprehensive error diagnostics on failure screen with full Python tracebacks, error type display, and configuration snapshot
+- Copy button to export all error details for easy troubleshooting and issue reporting
+- Health check log filtering to reduce log noise (silences 2880 daily health check entries)
+- Dual logging format support (text/json) for centralized logging systems via LOG_FORMAT environment variable
+- Detailed DEBUG-level logging for HTTP operations, cache hits/misses, and database operations
+
+### Changed
+- Enhanced logger with colored output (green INFO, cyan DEBUG) for easier log scanning
+- Improved error screen with collapsible technical details section
+- Proper log level implementation across all modules (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+
 ## [0.12.8] - 2025-10-17
 
 ### Fixed
