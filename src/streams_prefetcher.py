@@ -1086,6 +1086,56 @@ class StreamsPrefetcher:
         if cat_type == 'series': return 'series'
         return 'mixed'
 
+    def _finalize_statistics(self):
+        """Finalize statistics by copying live counters to results dict"""
+        self.results['statistics']['movies_prefetched'] = self.prefetched_movies_count
+        self.results['statistics']['series_prefetched'] = self.prefetched_series_count
+        self.results['statistics']['episodes_prefetched'] = self.prefetched_episodes_count
+        self.results['statistics']['service_cache_requests_sent'] = self.cache_requests_sent_count
+        self.results['statistics']['service_cache_requests_successful'] = self.cache_requests_successful_count
+
+    def _finalize_timing(self, interrupted: bool = False):
+        """Finalize timing information and add to results dict"""
+        # Set end_time if not already set (happens on interruption)
+        if self.end_time is None:
+            self.end_time = time.time()
+
+        # Set processing_end if not set
+        if self.processing_end is None and self.processing_start is not None:
+            self.processing_end = time.time()
+
+        # Calculate discovery duration
+        discovery_duration = 0
+        if self.catalog_discovery_start and self.catalog_discovery_end:
+            discovery_duration = self.catalog_discovery_end - self.catalog_discovery_start
+
+        # Calculate processing duration
+        processing_duration = 0
+        if self.processing_start and self.processing_end:
+            processing_duration = self.processing_end - self.processing_start
+
+        # Store timing information in results
+        self.results['timing'] = {
+            'start_time': self.start_time,
+            'end_time': self.end_time,
+            'catalog_discovery_start': self.catalog_discovery_start,
+            'catalog_discovery_end': self.catalog_discovery_end,
+            'processing_start': self.processing_start,
+            'processing_end': self.processing_end,
+            'total_duration': self.end_time - self.start_time if self.start_time and self.end_time else 0,
+            'discovery_duration': discovery_duration,
+            'processing_duration': processing_duration
+        }
+
+    def get_final_results(self, interrupted: bool = False) -> Dict[str, Any]:
+        """
+        Get finalized results with all statistics and timing populated.
+        Call this instead of accessing self.results directly.
+        """
+        self._finalize_statistics()
+        self._finalize_timing(interrupted=interrupted)
+        return self.results
+
     def process_all(self) -> Dict[str, Any]:
         self.start_time = time.time()
         
@@ -1443,26 +1493,12 @@ class StreamsPrefetcher:
 
         self.processing_end = time.time()
         self.end_time = time.time()
-        
+
         self.progress_tracker.cleanup_dashboard()
-        self.results['statistics']['movies_prefetched'] = self.prefetched_movies_count
-        self.results['statistics']['series_prefetched'] = self.prefetched_series_count
-        self.results['statistics']['episodes_prefetched'] = self.prefetched_episodes_count
-        self.results['statistics']['service_cache_requests_sent'] = self.cache_requests_sent_count
-        self.results['statistics']['service_cache_requests_successful'] = self.cache_requests_successful_count
-        
-        # Store timing information in results
-        self.results['timing'] = {
-            'start_time': self.start_time,
-            'end_time': self.end_time,
-            'catalog_discovery_start': self.catalog_discovery_start,
-            'catalog_discovery_end': self.catalog_discovery_end,
-            'processing_start': self.processing_start,
-            'processing_end': self.processing_end,
-            'total_duration': self.end_time - self.start_time,
-            'discovery_duration': discovery_duration,
-            'processing_duration': self.processing_end - self.processing_start
-        }
+
+        # Finalize statistics and timing using centralized methods
+        self._finalize_statistics()
+        self._finalize_timing(interrupted=False)
         
         # Log per-catalog timing stats
         if self.log_file and self.results.get('processed_catalogs'):

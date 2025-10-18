@@ -123,8 +123,9 @@ class StreamsPrefetcherWrapper:
             results = None
             if self.prefetcher:
                 self.prefetcher.progress_tracker.cleanup_dashboard()
+                # Use centralized method to get finalized results with all statistics
+                results = self.prefetcher.get_final_results(interrupted=True)
                 self.prefetcher.print_summary(interrupted=True)
-                results = self.prefetcher.results if hasattr(self.prefetcher, 'results') else None
 
             return {'success': False, 'interrupted': True, 'results': results}
 
@@ -135,7 +136,8 @@ class StreamsPrefetcherWrapper:
             results = None
             if self.prefetcher:
                 self.prefetcher.progress_tracker.cleanup_dashboard()
-                results = self.prefetcher.results if hasattr(self.prefetcher, 'results') else None
+                # Use centralized method to get finalized results with all statistics
+                results = self.prefetcher.get_final_results(interrupted=True)
 
             return {'success': False, 'error': str(e), 'results': results}
 
