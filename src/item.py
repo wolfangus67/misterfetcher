@@ -25,10 +25,14 @@ class Item:
     def get_logging_text(self) -> str:
         """Format this Item object for logging display"""
         if self.item_type == 'episode':
-            return f"{self.title} ({self.year}) S{self.season:02d}E{self.episode:02d} [{self.imdb_id}]"
+            # Only show year if it exists
+            year_part = f" ({self.year})" if self.year else ""
+            return f"{self.title}{year_part} S{self.season:02d}E{self.episode:02d} [{self.imdb_id}]"
         else:
             type_prefix = self.item_type.capitalize() if self.item_type else 'Item'
-            return f"{type_prefix}: {self.title} ({self.year}) [{self.imdb_id}]" if self.year else f"{type_prefix}: {self.title} [{self.imdb_id}]"
+            # Only show year if it exists
+            year_part = f" ({self.year})" if self.year else ""
+            return f"{type_prefix}: {self.title}{year_part} [{self.imdb_id}]"
 
     def get_cache_title(self) -> str:
         """Get title in format for database storage: 'Title (Year)'"""
@@ -99,9 +103,13 @@ class Item:
         if not item_type:
             item_type = item.get('type', 'unknown')
 
+        # Only convert to string if it's not already a string
+        if year and not isinstance(year, str):
+            year = str(year)
+
         return Item(
             imdb_id=imdb_id,
             title=title,
             item_type=item_type,
-            year=str(year) if year else None
+            year=year
         )

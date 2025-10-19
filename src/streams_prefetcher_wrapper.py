@@ -8,7 +8,12 @@ import io
 from typing import Callable, Optional, Dict, Any, List, Tuple
 from streams_prefetcher_filtered import FilteredStreamsPrefetcher
 from config_manager import ConfigManager
+from addon import addon_list_from_config, addon_list_to_config, Addon
 from catalog_id_utils import get_catalog_id_part, get_catalog_type_part
+from logger import get_logger
+
+# Initialize logger for this module
+logger = get_logger('streams_prefetcher.wrapper')
 
 
 class StreamsPrefetcherWrapper:
@@ -29,13 +34,16 @@ class StreamsPrefetcherWrapper:
 
     def _parse_config_to_args(self) -> Dict[str, Any]:
         """Parse configuration into arguments for StreamsPrefetcher"""
+        logger.info("🔧 [WRAPPER] Parsing configuration...")
         config = self.config_manager.get_all()
+        logger.debug(f"📊 [WRAPPER] Config has {len(config)} keys")
 
         # Get saved catalogs (filtered by enabled state)
         saved_catalogs = config.get('saved_catalogs', [])
+        logger.debug(f"📋 [WRAPPER] Found {len(saved_catalogs)} saved catalogs")
         enabled_catalogs = [cat for cat in saved_catalogs if cat.get('enabled', False)]
+        logger.info(f"✅ [WRAPPER] {len(enabled_catalogs)} catalogs enabled")
 
-        # Build addon URLs with catalog filters
         # Group enabled catalogs by addon URL
         addon_catalog_map = {}
         for cat in enabled_catalogs:
@@ -43,19 +51,8 @@ class StreamsPrefetcherWrapper:
             if addon_url not in addon_catalog_map:
                 addon_catalog_map[addon_url] = []
             addon_catalog_map[addon_url].append(cat)
+        logger.debug(f"🗺️ [WRAPPER] Catalogs mapped to {len(addon_catalog_map)} addon URLs")
 
-        # Parse addon URLs with their catalog filters
-        addon_urls = []
-        for item in config.get('addon_urls', []):
-            # Include catalog addons that have enabled catalogs
-            if item['type'] in ['catalog', 'both'] and item['url'] in addon_catalog_map:
-                addon_urls.append((item['url'], item['type']))
-            # Always include stream-only addons regardless of catalog selection
-            elif item['type'] == 'stream':
-                addon_urls.append((item['url'], item['type']))
-
-        if not addon_urls:
-            raise ValueError("No addon URLs configured or no catalogs enabled")
 
         # Build catalog filter (tuples of catalog_id and type to include)
         # This ensures movie and series catalogs with the same ID are treated distinctly
@@ -64,15 +61,48 @@ class StreamsPrefetcherWrapper:
             # Extract catalog ID and type from the full ID (format: "addon_url|catalog_id|catalog_type")
             catalog_id = get_catalog_id_part(cat['id'])
             catalog_type = get_catalog_type_part(cat['id'])
+            logger.debug(f"   • Catalog: {cat.get('name', 'Unknown')} -> ID: {catalog_id}, Type: {catalog_type}")
             if catalog_id and catalog_type:
                 # Store as tuple (catalog_id, type) to distinguish movie vs series catalogs
                 catalog_filter.append((catalog_id, catalog_type))
+        logger.info(f"🔍 [WRAPPER] Built catalog filter with {len(catalog_filter)} entries")
 
         # Get cache_uncached_streams config
         cache_uncached_streams = config.get('cache_uncached_streams', {})
+        logger.debug("💾 [WRAPPER] Cache uncached streams config parsed")
 
-        return {
-            'addon_urls': addon_urls,
+        # Convert addon URLs to Addon objects
+        addons = []
+        addon_urls = config.get('addon_urls', [])
+        logger.debug(f"📡 [WRAPPER] Processing {len(addon_urls)} addon URLs")
+        for item in addon_urls:
+            # Include catalog addons that have enabled catalogs
+            if item['type'] in ['catalog', 'both'] and item['url'] in addon_catalog_map:
+                logger.debug(f"   • Adding {item['type']} addon: {item['url']}")
+                try:
+                    addon = Addon.from_dict(item)
+                    addons.append(addon)
+                    logger.debug(f"     ✅ Successfully created Addon object")
+                except Exception as e:
+                    logger.error(f"     ❌ Failed to create Addon object: {e}")
+            # Always include stream-only addons regardless of catalog selection
+            elif item['type'] == 'stream':
+                logger.debug(f"   • Adding stream-only addon: {item['url']}")
+                try:
+                    addon = Addon.from_dict(item)
+                    addons.append(addon)
+                    logger.debug(f"     ✅ Successfully created stream Addon object")
+                except Exception as e:
+                    logger.error(f"     ❌ Failed to create stream Addon object: {e}")
+
+        if not addons:
+            logger.error("❌ [WRAPPER] No addons configured or no catalogs enabled")
+            raise ValueError("No addons configured or no catalogs enabled")
+
+        logger.info(f"✅ [WRAPPER] Successfully created {len(addons)} addon objects")
+
+        args = {
+            'addons': addons,
             'catalog_filter': catalog_filter if catalog_filter else None,
             'movies_global_limit': config.get('movies_global_limit', 200),
             'series_global_limit': config.get('series_global_limit', 15),
@@ -95,55 +125,84 @@ class StreamsPrefetcherWrapper:
             'cached_streams_count_threshold': cache_uncached_streams.get('cached_streams_count_threshold', 0)
         }
 
+        logger.debug("🔧 [WRAPPER] Configuration parsing complete")
+        return args
+
     def run(self) -> Dict[str, Any]:
         """Run the prefetcher and return results"""
         try:
             # Parse configuration
+            logger.info("🚀 [WRAPPER] Starting prefetch job...")
             args = self._parse_config_to_args()
+            logger.info(f"📊 [WRAPPER] Parsed {len(args.get('addons', []))} addons and {len(args.get('catalog_filter', []))} catalog filters")
+
+            # Debug: log all args
+            logger.debug("🔧 [WRAPPER] Configuration arguments:")
+            for key, value in args.items():
+                if key not in ['addons']:  # Don't log full addon objects
+                    logger.debug(f"   • {key}: {value}")
+
+            logger.debug(f"   • addons: {len(args.get('addons', []))} objects")
 
             # Create prefetcher instance with filtering support
+            logger.info("🔧 [WRAPPER] Creating FilteredStreamsPrefetcher instance...")
             self.prefetcher = FilteredStreamsPrefetcher(scheduler=self.scheduler, **args)
+            logger.info("✅ [WRAPPER] FilteredStreamsPrefetcher created successfully")
 
             # Optionally wrap progress tracker methods to provide callbacks
             if self.progress_callback:
+                logger.debug("📊 [WRAPPER] Wrapping progress tracker callbacks...")
                 self._wrap_progress_tracker()
+                logger.debug("✅ [WRAPPER] Progress tracker wrapped")
 
             # Run the prefetcher
+            logger.info("🚀 [WRAPPER] Starting prefetcher.process_all()...")
             results = self.prefetcher.process_all()
+            logger.info("✅ [WRAPPER] prefetcher.process_all() completed")
 
             # Print summary
+            logger.info("📋 [WRAPPER] Printing summary...")
             self.prefetcher.print_summary(interrupted=False)
 
             return {'success': True, 'results': results}
 
         except KeyboardInterrupt:
+            logger.error("⚠️ [WRAPPER] Keyboard interrupt received")
             if self.output_callback:
                 self.output_callback("\n\nScript interrupted by user. Cleaning up and generating summary...")
 
             results = None
             if self.prefetcher:
+                logger.debug("🧹 [WRAPPER] Cleaning up dashboard...")
                 self.prefetcher.progress_tracker.cleanup_dashboard()
                 # Use centralized method to get finalized results with all statistics
+                logger.debug("📊 [WRAPPER] Getting final results...")
                 results = self.prefetcher.get_final_results(interrupted=True)
+                logger.debug("📋 [WRAPPER] Printing interrupted summary...")
                 self.prefetcher.print_summary(interrupted=True)
 
             return {'success': False, 'interrupted': True, 'results': results}
 
         except Exception as e:
+            logger.error(f"❌ [WRAPPER] EXCEPTION: {type(e).__name__}: {e}", exc_info=True)
             if self.output_callback:
                 self.output_callback(f"\n\nAn unexpected error occurred: {e}")
 
             results = None
             if self.prefetcher:
+                logger.debug("🧹 [WRAPPER] Cleaning up dashboard after error...")
                 self.prefetcher.progress_tracker.cleanup_dashboard()
                 # Use centralized method to get finalized results with all statistics
+                logger.debug("📊 [WRAPPER] Getting final results after error...")
                 results = self.prefetcher.get_final_results(interrupted=True)
 
             return {'success': False, 'error': str(e), 'results': results}
 
         finally:
             if self.prefetcher and self.prefetcher.db_conn:
+                logger.debug("🔐 [WRAPPER] Closing database connection...")
                 self.prefetcher.db_conn.close()
+                logger.debug("✅ [WRAPPER] Database connection closed")
 
     def _wrap_progress_tracker(self):
         """Wrap progress tracker methods to provide callbacks"""

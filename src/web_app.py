@@ -715,6 +715,23 @@ def resume_job():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@app.route('/api/job/reset', methods=['POST'])
+def reset_job():
+    """Reset job status from failed/completed/cancelled to idle"""
+    try:
+        success, message = job_scheduler.reset_job()
+
+        if success:
+            logger.info("Job status reset via API")
+            return jsonify({'success': True, 'message': message})
+        else:
+            return jsonify({'success': False, 'error': message}), 400
+
+    except Exception as e:
+        logger.error(f"Error resetting job: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/api/job/output', methods=['GET'])
 def get_job_output():
     """Get job output (paginated)"""

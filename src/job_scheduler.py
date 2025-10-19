@@ -302,6 +302,55 @@ class JobScheduler:
         logger.info(f"Job type: {'Manual' if manual else 'Scheduled'}")
         logger.info(f"Start time: {datetime.fromtimestamp(self.job_start_time).strftime('%Y-%m-%d %H:%M:%S')}")
 
+        # Enhanced debug logging at job start
+        config = self.config_manager.get_all()
+        logger.debug("🚀 ENHANCED JOB CONFIGURATION SNAPSHOT")
+        logger.debug("=" * 60)
+
+        # Log addon URLs
+        addon_urls = config.get('addon_urls', [])
+        logger.debug(f"📡 Addon URLs configured: {len(addon_urls)}")
+        for i, addon in enumerate(addon_urls, 1):
+            logger.debug(f"   {i}. {addon['type'].upper()}: {addon['url']}")
+
+        # Log selected catalogs
+        saved_catalogs = config.get('saved_catalogs', [])
+        enabled_catalogs = [cat for cat in saved_catalogs if cat.get('enabled', False)]
+        logger.debug(f"📋 Selected catalogs: {len(enabled_catalogs)} enabled out of {len(saved_catalogs)} total")
+
+        # Log global limits and settings
+        logger.debug("⚙️ Global Settings:")
+        logger.debug(f"   • Movies global limit: {config.get('movies_global_limit', -1)}")
+        logger.debug(f"   • Series global limit: {config.get('series_global_limit', -1)}")
+        logger.debug(f"   • Delay between requests: {config.get('delay', 0)}s")
+        logger.debug(f"   • Network timeout: {config.get('network_request_timeout', 30)}s")
+        logger.debug(f"   • Max execution time: {config.get('max_execution_time', -1)}s")
+        logger.debug(f"   • Cache validity: {config.get('cache_validity', 604800)}s")
+
+        # Log cache settings
+        cache_uncached = config.get('cache_uncached_streams', {})
+        logger.debug("💾 Cache Settings:")
+        logger.debug(f"   • Cache uncached streams: {'Enabled' if cache_uncached.get('enabled', False) else 'Disabled'}")
+        if cache_uncached.get('enabled', False):
+            logger.debug(f"   • Cached stream regex: '{cache_uncached.get('cached_stream_regex', '⚡')}'")
+            logger.debug(f"   • Skip streams regex: '{cache_uncached.get('skip_streams_regex', '')}'")
+            logger.debug(f"   • Max cache requests per item: {cache_uncached.get('max_cache_requests_per_item', 1)}")
+            logger.debug(f"   • Max cache requests global: {cache_uncached.get('max_cache_requests_global', 50)}")
+
+        # Log memory usage (if psutil available)
+        try:
+            import psutil
+            process = psutil.Process()
+            memory_info = process.memory_info()
+            memory_mb = memory_info.rss / 1024 / 1024
+            logger.debug(f"🧠 Memory usage at start: {memory_mb:.1f} MB")
+        except ImportError:
+            logger.debug("🧠 Memory usage: psutil not available for monitoring")
+        except Exception as e:
+            logger.debug(f"🧠 Memory usage check failed: {e}")
+
+        logger.debug("=" * 60)
+
         # Notify status change
         self._notify_callbacks('status_change', {
             'status': self.job_status,
@@ -425,6 +474,15 @@ class JobScheduler:
                 'traceback': error_traceback,
                 'config_snapshot': config_snapshot
             }
+
+            # Ensure job_error is JSON serializable
+            try:
+                import json
+                # Test serialization
+                json.dumps(self.job_error)
+            except (TypeError, ValueError) as e:
+                # If not serializable, convert to string format
+                self.job_error = f"{error_type}: {error_message}" if error_message else error_type
 
             logger.error("=" * 60)
             logger.error("PREFETCH JOB FAILED")
@@ -614,6 +672,43 @@ class JobScheduler:
 
             return True, "Job resumed"
         return False, "No paused job to resume"
+
+    def reset_job(self):
+        """Reset job status from failed/completed/cancelled to idle"""
+        # Store old status for logging
+        old_status = self.job_status
+
+        # Only allow reset for terminal states, not for active states
+        if old_status in [JobStatus.RUNNING, JobStatus.PAUSING, JobStatus.PAUSED, JobStatus.RESUMING]:
+            return False, f"Cannot reset job while {old_status.lower()}"
+
+        # If already idle, just say so
+        if old_status == JobStatus.IDLE:
+            return True, "Job is already idle"
+
+        # Only reset if job is in a terminal state
+        if old_status in [JobStatus.FAILED, JobStatus.COMPLETED, JobStatus.CANCELLED]:
+            logger.info(f"Resetting job status from {old_status} to IDLE")
+
+            # Reset job state
+            self.job_status = JobStatus.IDLE
+            self.job_start_time = None
+            self.job_end_time = None
+            self.job_error = None
+            self.job_summary = None
+            self.cancellation_start_time = None
+
+            # Clear output buffer
+            with self.output_lock:
+                self.output_lines = []
+
+            # Clear progress data
+            with self.progress_lock:
+                self.progress_data = {}
+
+            return True, f"Job status reset from {old_status} to idle"
+
+        return False, f"Cannot reset job from {old_status} status"
 
     def shutdown(self):
         """Shutdown scheduler"""

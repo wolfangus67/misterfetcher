@@ -22,6 +22,7 @@ from urllib.parse import urljoin, quote
 from typing import List, Dict, Any, Optional, Tuple
 from logger import get_logger
 from item import Item
+from addon import Addon
 
 # Initialize logger for this module
 logger = get_logger('streams_prefetcher')
@@ -575,9 +576,20 @@ def format_time_string(seconds: float) -> str:
         return " ".join(parts)
 
 class StreamsPrefetcher:
-    def __init__(self, addon_urls: List[Tuple[str, str]], movies_global_limit: int, series_global_limit: int, movies_per_catalog: int, series_per_catalog: int, items_per_mixed_catalog: int, delay: float, network_request_timeout: int = 30, proxy_url: Optional[str] = None, randomize_catalogs: bool = False, randomize_items: bool = False, cache_validity_seconds: int = 259200, max_execution_time: int = -1, enable_logging: bool = False, cache_uncached_streams_enabled: bool = False, cached_stream_regex: str = '⚡', skip_streams_regex: str = '', max_cache_requests_per_item: int = 1, max_cache_requests_global: int = 50, cached_streams_count_threshold: int = 0, scheduler=None):
-        self.addon_urls = addon_urls
+    def __init__(self, addon_urls: List[Tuple[str, str]] = None, addons: List[Addon] = None, movies_global_limit: int = -1, series_global_limit: int = -1, movies_per_catalog: int = 50, series_per_catalog: int = 3, items_per_mixed_catalog: int = 20, delay: float = 2, network_request_timeout: int = 30, proxy_url: Optional[str] = None, randomize_catalogs: bool = False, randomize_items: bool = False, cache_validity_seconds: int = 259200, max_execution_time: int = -1, enable_logging: bool = False, cache_uncached_streams_enabled: bool = False, cached_stream_regex: str = '⚡', skip_streams_regex: str = '', max_cache_requests_per_item: int = 1, max_cache_requests_global: int = 50, cached_streams_count_threshold: int = 0, addon_name_cache: Optional[Dict[str, str]] = None, scheduler=None):
+        # Handle old format for backward compatibility
+        if addons is not None:
+            # New format: use Addon objects directly
+            self.addons = addons
+        elif addon_urls is not None:
+            # Old format: convert tuples to Addon objects
+            self.addons = [Addon.from_url(url, addon_type) for url, addon_type in addon_urls]
+        else:
+            # Default: empty lists
+            self.addons = []
+
         self.scheduler = scheduler
+        self.addon_name_cache = addon_name_cache or {}
         self.movies_global_limit = movies_global_limit
         self.series_global_limit = series_global_limit
         self.movies_per_catalog = movies_per_catalog
@@ -633,8 +645,16 @@ class StreamsPrefetcher:
         
         self.results = self.initialize_results()
 
-        self.catalog_urls = [url for url, type in addon_urls if type in ['catalog', 'both']]
-        self.stream_urls = [url for url, type in addon_urls if type in ['stream', 'both']]
+        # Separate addons by type
+        self.catalog_addons = [addon for addon in self.addons if addon.is_catalog_type()]
+        self.stream_addons = [addon for addon in self.addons if addon.is_stream_type()]
+
+        # Keep URL lists for backward compatibility with existing code
+        self.catalog_urls = [addon.url for addon in self.catalog_addons]
+        self.stream_urls = [addon.url for addon in self.stream_addons]
+
+        # Create addon lookup dictionary
+        self.addon_lookup = {addon.url: addon for addon in self.addons}
 
         self.progress_tracker = ProgressTracker()
 
@@ -856,7 +876,7 @@ class StreamsPrefetcher:
 
     def initialize_results(self) -> Dict[str, Any]:
         return {
-            'addon_urls': self.addon_urls,
+            'addons': [addon.to_dict() for addon in self.addons],
             'limits': {
                 'movies_global': self.movies_global_limit, 'series_global': self.series_global_limit,
                 'movies_per_catalog': self.movies_per_catalog, 'series_per_catalog': self.series_per_catalog,
@@ -1002,37 +1022,88 @@ class StreamsPrefetcher:
         content_id = item.get_content_id()
         content_type = 'series' if item.is_episode() else item.item_type
 
-        return any(self._prefetch_single_stream(content_id, content_type, url, item) for url in self.stream_urls)
+        # Debug logging before prefetching
+        logger.debug(f"⚡ PREFETCHING ITEM: {item.get_logging_text()}")
+        logger.debug(f"   • Content ID: {content_id}")
+        logger.debug(f"   • Content Type: {content_type}")
+        logger.debug(f"   • Stream URLs to query: {len(self.stream_urls)}")
+
+        # Check cache status first
+        is_cached = self.is_cache_valid(item)
+        logger.debug(f"   • Cache Status: {'✅ Cached' if is_cached else '❌ Not cached'}")
+
+        # Log each stream URL that will be queried
+        for i, stream_url in enumerate(self.stream_urls, 1):
+            addon = self.addon_lookup.get(stream_url)
+            if addon:
+                logger.debug(f"   {i}. {addon.get_display_name()}")
+            else:
+                logger.debug(f"   {i}. {stream_url}")
+
+        # Track prefetch timing
+        prefetch_start = time.perf_counter()
+
+        # Execute prefetch
+        result = any(self._prefetch_single_stream(content_id, content_type, url, item) for url in self.stream_urls)
+
+        # Log timing
+        prefetch_duration = time.perf_counter() - prefetch_start
+        logger.debug(f"   ⏱️ Prefetch duration: {prefetch_duration:.2f}s")
+        logger.debug(f"   • Result: {'✅ Success' if result else '❌ Failed'}")
+
+        return result
 
     def _prefetch_single_stream(self, content_id: str, content_type: str, stream_addon_url: str, item: Item) -> bool:
         """Prefetch from a single stream addon URL"""
         stream_url = f"{stream_addon_url}/stream/{content_type}/{content_id}.json"
 
-        # Log the prefetch attempt
-        if os.getenv('LOG_LEVEL') == 'DEBUG':
-            log_msg = f"Prefetching streams: {item.get_logging_text()} from {stream_addon_url}"
-            if os.getenv('LOG_FORMAT') == 'json':
-                log_extra = {
-                    'event': 'stream_prefetch_attempt',
-                    'item_title': item.title,
-                    'item_year': item.year,
-                    'item_type': item.item_type,
-                    'item_id': item.imdb_id,
-                    'episode_info': item.get_episode_info() or None,
-                    'stream_url': stream_addon_url
-                }
-                logger.debug(log_msg, extra=log_extra)
-            else:
-                logger.debug(log_msg)
+# Get addon for logging
+        addon = self.addon_lookup.get(stream_addon_url)
+        addon_display_name = addon.get_display_name() if addon else stream_addon_url
+
+        # Debug logging before HTTP request
+        logger.debug(f"🌐 HTTP REQUEST: {item.get_logging_text()} → {addon_display_name}")
+        logger.debug(f"   • Request URL: {stream_url}")
+        logger.debug(f"   • Timeout: {self.network_request_timeout}s")
 
         # Mark request as in-progress BEFORE incrementing counter
         self.in_progress_request = True
         self.results['statistics']['cache_requests_made'] += 1
 
         response = None
+        request_start = time.perf_counter()
+
         try:
+            logger.debug(f"   📤 Sending GET request...")
             response = self.session.get(stream_url, timeout=self.network_request_timeout)
+
+            # Calculate timing
+            request_duration = time.perf_counter() - request_start
+            response_size = len(response.content) if response.content else 0
+
+            # Log response details
+            logger.debug(f"   📥 Response received:")
+            logger.debug(f"   • Status code: {response.status_code}")
+            logger.debug(f"   • Response time: {request_duration:.2f}s")
+            logger.debug(f"   • Response size: {response_size} bytes")
+            logger.debug(f"   • Content type: {response.headers.get('content-type', 'unknown')}")
+
             response.raise_for_status()
+
+            # Log additional response info on success
+            logger.debug(f"   ✅ Request successful")
+
+            # Log if response contains streams
+            if response_size > 0:
+                try:
+                    stream_data = response.json()
+                    streams_count = len(stream_data.get('streams', []))
+                    logger.debug(f"   • Streams in response: {streams_count}")
+                except:
+                    logger.debug(f"   • Could not parse JSON from response")
+            else:
+                logger.debug(f"   ⚠️ Empty response body")
+
             time.sleep(self.delay)
             self.results['statistics']['cache_requests_successful'] += 1
 
@@ -1085,8 +1156,8 @@ class StreamsPrefetcher:
                             attempts = 0
 
                             # Log if attempting cache requests
-                            if max_attempts_allowed > 0 and title and content_type == 'movie':
-                                sys.stdout.write(f"\n🔄 Caching: {title}\n")
+                            if max_attempts_allowed > 0 and item.title and content_type == 'movie':
+                                sys.stdout.write(f"\n🔄 Caching: {item.title}\n")
                                 sys.stdout.flush()
 
                             # Try URLs until we get enough successes or run out of attempts
@@ -1119,8 +1190,27 @@ class StreamsPrefetcher:
                     pass  # Silently fail JSON parsing errors
 
             return True
-        except requests.exceptions.RequestException:
+        except requests.exceptions.RequestException as e:
             self.results['statistics']['errors'] += 1
+
+            # Calculate timing for failed request
+            request_duration = time.perf_counter() - request_start
+
+            # Detailed error logging
+            logger.debug(f"   ❌ REQUEST FAILED:")
+            logger.debug(f"   • Error type: {type(e).__name__}")
+            logger.debug(f"   • Error message: {str(e)}")
+            logger.debug(f"   • Request duration: {request_duration:.2f}s")
+
+            # Specific error types
+            if isinstance(e, requests.exceptions.Timeout):
+                logger.debug(f"   • ⏰ Request timed out after {self.network_request_timeout}s")
+            elif isinstance(e, requests.exceptions.ConnectionError):
+                logger.debug(f"   • 🔌 Connection error - addon unreachable")
+            elif isinstance(e, requests.exceptions.HTTPError):
+                logger.debug(f"   • 🚫 HTTP error: {e.response.status_code if e.response else 'No response'}")
+            elif isinstance(e, requests.exceptions.RequestException):
+                logger.debug(f"   • 📡 Network/Request error")
 
             # Clear in-progress flag on failure
             self.in_progress_request = False
@@ -1208,7 +1298,7 @@ class StreamsPrefetcher:
             self._log("\n" + "=" * 60)
             self._log("SCRIPT CONFIGURATION")
             self._log("=" * 60)
-            self._log(f"Addon URLs: {', '.join([f'{t}:{u}' for u, t in self.addon_urls])}")
+            self._log(f"Addons: {', '.join([f'{addon.name} ({addon.type})' for addon in self.addons])}")
             self._log(f"Movies Global Limit: {self.movies_global_limit if self.movies_global_limit != -1 else 'Unlimited'}")
             self._log(f"Series Global Limit: {self.series_global_limit if self.series_global_limit != -1 else 'Unlimited'}")
             self._log(f"Movies per Catalog: {self.movies_per_catalog if self.movies_per_catalog != -1 else 'Unlimited'}")
@@ -1225,12 +1315,20 @@ class StreamsPrefetcher:
         fetch_msg = "\nFetching valid catalogs from catalog addons..."
         print(fetch_msg)
         self._log("\n" + fetch_msg)
-        
+
+        # Debug logging for catalog discovery phase
+        logger.debug("🔍 CATALOG DISCOVERY PHASE")
+        logger.debug(f"   • Catalog URLs to query: {len(self.catalog_urls)}")
+        for i, url in enumerate(self.catalog_urls, 1):
+            logger.debug(f"   {i}. {url}")
+
         self.catalog_discovery_start = time.time()
-        
+
         all_included_catalogs, all_skipped_catalogs, total_manifest_catalogs = [], [], 0
         for url in self.catalog_urls:
+            logger.debug(f"📁 Fetching catalogs from: {url}")
             included, skipped, total = self.get_catalogs(url)
+            logger.debug(f"   • Included: {len(included)}, Skipped: {len(skipped)}, Total in manifest: {total}")
             all_included_catalogs.extend([(c, url) for c in included])
             all_skipped_catalogs.extend([(s['catalog'], url, s['reason']) for s in skipped])
             total_manifest_catalogs += total
@@ -1241,6 +1339,14 @@ class StreamsPrefetcher:
         found_msg = f"\nFound {total_manifest_catalogs} catalogs in {self.format_duration(self.catalog_discovery_start, self.catalog_discovery_end)}."
         print(found_msg)
         self._log(found_msg)
+
+        logger.debug(f"📊 Catalog discovery completed in {discovery_duration:.2f}s")
+        logger.debug(f"   • Total catalogs discovered: {total_manifest_catalogs}")
+        logger.debug(f"   • Included for processing: {len(all_included_catalogs)}")
+        logger.debug(f"   • Skipped: {len(all_skipped_catalogs)}")
+
+        if self.randomize_catalogs:
+            logger.debug("🔀 Catalog randomization enabled")
         
         # Log catalog table to file
         if self.log_file:
@@ -1263,7 +1369,14 @@ class StreamsPrefetcher:
         processing_msg = f"\nStarting processing of {total_to_process} catalogs"
         print(processing_msg)
         self._log(processing_msg)
-        
+
+        # Debug logging for processing phase
+        logger.debug("🏁 PROCESSING PHASE")
+        logger.debug(f"   • Catalogs to process: {total_to_process}")
+        logger.debug(f"   • Movies global limit: {self.movies_global_limit}")
+        logger.debug(f"   • Series global limit: {self.series_global_limit}")
+        logger.debug(f"   • Delay between items: {self.delay}s")
+
         self.processing_start = time.time()
         self.progress_tracker.init_overall_progress([c[0].get('name', 'N/A') for c in all_included_catalogs])
         
@@ -1274,7 +1387,15 @@ class StreamsPrefetcher:
             if cat_mode == 'movie': per_catalog_limit = self.movies_per_catalog
             elif cat_mode == 'series': per_catalog_limit = self.series_per_catalog
             else: per_catalog_limit = self.items_per_mixed_catalog
-            
+
+            # Debug logging for catalog processing
+            catalog_num = i + 1
+            logger.debug(f"📂 [{catalog_num}/{total_to_process}] PROCESSING CATALOG: {cat_name}")
+            logger.debug(f"   • Catalog ID: {cat_id}")
+            logger.debug(f"   • Type: {cat_mode}")
+            logger.debug(f"   • Per-catalog limit: {per_catalog_limit}")
+            logger.debug(f"   • Addon URL: {cat_addon_url}")
+
             # Store initial counts at the start of processing this catalog
             initial_movies_count = self.prefetched_movies_count
             initial_series_count = self.prefetched_series_count
@@ -1295,6 +1416,8 @@ class StreamsPrefetcher:
                 if (cat_mode == 'movie' and movies_limit_reached) or (cat_mode == 'series' and series_limit_reached) or (cat_mode == 'mixed' and movies_limit_reached and series_limit_reached): break
 
                 page += 1
+                page_start_time = time.perf_counter()
+
                 self.progress_tracker.redraw_dashboard(
                     catalog_statuses=[c['status'] for c in self.progress_tracker.overall_catalogs],
                     completed_catalogs=i,
@@ -1313,12 +1436,22 @@ class StreamsPrefetcher:
                     start_time=self.processing_start,
                     max_execution_time=self.max_execution_time
                 )
-                
+
                 cat_url = f"{cat_addon_url}/catalog/{cat_info.get('type', 'movie')}/{cat_id}/skip={(page-1) * 100}.json"
+                logger.debug(f"📄 FETCHING PAGE {page} from catalog '{cat_name}'")
+                logger.debug(f"   • URL: {cat_url}")
+
                 cat_data = self.make_request(cat_url)
                 self.results['statistics']['total_pages_fetched'] += 1
                 metas = cat_data.get('metas', []) if cat_data else []
-                if not metas: break
+
+                # Log page fetch results
+                page_duration = time.perf_counter() - page_start_time
+                if not metas:
+                    logger.debug(f"   ✅ Page {page} is empty (no more items)")
+                    break
+                else:
+                    logger.debug(f"   ✅ Fetched {len(metas)} items in {page_duration:.2f}s")
 
                 if self.randomize_items: random.shuffle(metas)
 
@@ -1341,10 +1474,25 @@ class StreamsPrefetcher:
 
                 self._is_processing_items = True  # Enable auto-refresh
                 item_statuses_on_page = []
+                items_processed_on_page = 0
                 for item in metas:
+                    items_processed_on_page += 1
+
+                    # Progress checkpoint logging every 10 items
+                    total_items_processed = self.prefetched_movies_count + self.prefetched_series_count
+                    if total_items_processed % 10 == 0:
+                        logger.debug(f"📍 PROGRESS CHECKPOINT: {total_items_processed} items processed")
+                        logger.debug(f"   • Movies: {self.prefetched_movies_count}, Series: {self.prefetched_series_count}")
+                        logger.debug(f"   • Cache requests sent: {self.cache_requests_sent_count}")
+                        logger.debug(f"   • Cache requests successful: {self.cache_requests_successful_count}")
+                        logger.debug(f"   • Current catalog: {cat_name} (item {items_processed_on_page} of {len(metas)})")
                     # Check if paused BEFORE starting new item (wait if paused)
                     if self.scheduler:
+                        if self.scheduler.is_paused:
+                            logger.debug("⏸️ Job is paused, waiting...")
                         self.scheduler.pause_event.wait()  # Blocks if paused, returns immediately if not
+                        if self.scheduler.is_paused and self.scheduler.pause_requested == False:
+                            logger.debug("▶️ Job resumed")
 
                     if per_catalog_limit != -1 and prefetched_in_this_catalog >= per_catalog_limit: break
                     item_type = item.get('type')
@@ -1543,6 +1691,16 @@ class StreamsPrefetcher:
             success_rate = (catalog_cache_requests_successful / catalog_cache_requests * 100) if catalog_cache_requests > 0 else 100.0
             logger.info(f"Completed catalog '{cat_name}' ({cat_mode}): {success_count} prefetched, {cached_count} cached, {failed_count} failed ({self.format_duration(catalog_start_time, catalog_end_time)}, {success_rate:.1f}% success rate)")
 
+            # Debug logging for catalog completion
+            logger.debug(f"✅ CATALOG COMPLETED: {cat_name}")
+            logger.debug(f"   • Duration: {catalog_duration:.2f}s")
+            logger.debug(f"   • Items prefetched: {success_count}")
+            logger.debug(f"   • Items already cached: {cached_count}")
+            logger.debug(f"   • Items failed: {failed_count}")
+            logger.debug(f"   • Cache requests sent: {catalog_cache_requests}")
+            logger.debug(f"   • Cache requests successful: {catalog_cache_requests_successful}")
+            logger.debug(f"   • Cache success rate: {success_rate:.1f}%")
+
             self.results['statistics']['cached_count'] += cached_count
             self.progress_tracker.finish_catalog_processing(success_count, failed_count, cached_count, catalog_name=cat_name)
             
@@ -1559,6 +1717,31 @@ class StreamsPrefetcher:
         # Finalize statistics and timing using centralized methods
         self._finalize_statistics()
         self._finalize_timing(interrupted=False)
+
+        # Debug logging for job completion
+        total_duration = self.end_time - self.start_time
+        processing_duration = self.processing_end - self.processing_start
+        stats = self.results['statistics']
+
+        logger.debug("🏁 JOB COMPLETION SUMMARY")
+        logger.debug("=" * 60)
+        logger.debug(f"⏱️ Total duration: {total_duration:.2f}s")
+        logger.debug(f"   • Discovery phase: {discovery_duration:.2f}s")
+        logger.debug(f"   • Processing phase: {processing_duration:.2f}s")
+        logger.debug(f"📊 Statistics:")
+        logger.debug(f"   • Catalogs processed: {stats.get('filtered_catalogs', 0)}")
+        logger.debug(f"   • Movies prefetched: {stats.get('movies_prefetched', 0)}")
+        logger.debug(f"   • Series prefetched: {stats.get('series_prefetched', 0)}")
+        logger.debug(f"   • Episodes prefetched: {stats.get('episodes_prefetched', 0)}")
+        logger.debug(f"   • Pages fetched: {stats.get('total_pages_fetched', 0)}")
+        logger.debug(f"💾 Cache statistics:")
+        logger.debug(f"   • Items already cached: {stats.get('items_from_cache', 0)}")
+        logger.debug(f"   • Cache requests sent: {stats.get('cache_requests_made', 0)}")
+        logger.debug(f"   • Cache requests successful: {stats.get('cache_requests_successful', 0)}")
+        cache_success_rate = (stats.get('cache_requests_successful', 0) / stats.get('cache_requests_made', 1) * 100) if stats.get('cache_requests_made', 0) > 0 else 0
+        logger.debug(f"   • Cache success rate: {cache_success_rate:.1f}%")
+        logger.debug(f"   • Errors encountered: {stats.get('errors', 0)}")
+        logger.debug("=" * 60)
         
         # Log per-catalog timing stats
         if self.log_file and self.results.get('processed_catalogs'):

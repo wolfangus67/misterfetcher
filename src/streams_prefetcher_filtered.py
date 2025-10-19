@@ -9,7 +9,7 @@ import sys
 import os
 
 # Import the original prefetcher
-sys.path.insert(0, '/opt/Streams-Prefetcher/src')
+sys.path.insert(0, '/app/src')
 from streams_prefetcher import StreamsPrefetcher as OriginalStreamsPrefetcher
 from typing import List, Dict, Any, Tuple, Optional
 

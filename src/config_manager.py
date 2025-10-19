@@ -8,6 +8,7 @@ import os
 from typing import Dict, Any, List, Tuple
 from pathlib import Path
 from logger import get_logger
+from addon import addon_list_from_config, addon_list_to_config
 
 logger = get_logger('streams_prefetcher.config_manager')
 
@@ -55,6 +56,10 @@ class ConfigManager:
             if self.config_path.exists():
                 with open(self.config_path, 'r') as f:
                     loaded_config = json.load(f)
+
+                # Migrate old addon format to new format if needed
+                loaded_config = self._migrate_config(loaded_config)
+
                 # Merge with defaults to ensure all keys exist
                 config = self.DEFAULT_CONFIG.copy()
                 config.update(loaded_config)
@@ -64,6 +69,76 @@ class ConfigManager:
         except Exception as e:
             print(f"Error loading config: {e}")
             return self.DEFAULT_CONFIG.copy()
+
+    def _migrate_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Migrate configuration to new formats"""
+        migrated = False
+
+        # Migrate addon_urls from old tuple format to new dict format
+        if 'addon_urls' in config:
+            old_addon_urls = config['addon_urls']
+            if old_addon_urls and isinstance(old_addon_urls, list):
+                # Check if we have old format (list of tuples or dicts with just url/type)
+                needs_migration = False
+                for item in old_addon_urls:
+                    if isinstance(item, (list, tuple)) and len(item) == 2:
+                        needs_migration = True
+                        break
+                    elif isinstance(item, dict) and 'url' in item and 'type' in item and 'name' not in item:
+                        needs_migration = True
+                        break
+
+                if needs_migration:
+                    logger.info("[CONFIG MIGRATION] Migrating addon_urls to new format")
+                    # Convert to new Addon object format
+                    try:
+                        addons = addon_list_from_config(old_addon_urls)
+                        config['addon_urls'] = addon_list_to_config(addons)
+                        migrated = True
+                        logger.info(f"[CONFIG MIGRATION] Migrated {len(addons)} addons to new format")
+                    except Exception as e:
+                        logger.error(f"[CONFIG MIGRATION] Failed to migrate addons: {e}")
+
+        # Migrate addon_name_cache into addon objects
+        if 'addon_name_cache' in config and 'addon_urls' in config:
+            addon_name_cache = config.get('addon_name_cache', {})
+            if addon_name_cache:
+                logger.info("[CONFIG MIGRATION] Migrating addon_name_cache to addon objects")
+                for addon_data in config['addon_urls']:
+                    addon_url = addon_data.get('url')
+                    if addon_url and addon_url in addon_name_cache:
+                        addon_data['name'] = addon_name_cache[addon_url]
+                        migrated = True
+
+                # Remove old addon_name_cache
+                del config['addon_name_cache']
+                logger.info("[CONFIG MIGRATION] Removed old addon_name_cache")
+
+        # Migrate addon_logo_cache into addon objects
+        if 'addon_logo_cache' in config and 'addon_urls' in config:
+            addon_logo_cache = config.get('addon_logo_cache', {})
+            if addon_logo_cache:
+                logger.info("[CONFIG MIGRATION] Migrating addon_logo_cache to addon objects")
+                for addon_data in config['addon_urls']:
+                    addon_url = addon_data.get('url')
+                    if addon_url and addon_url in addon_logo_cache:
+                        addon_data['logo'] = addon_logo_cache[addon_url]
+                        migrated = True
+
+                # Remove old addon_logo_cache
+                del config['addon_logo_cache']
+                logger.info("[CONFIG MIGRATION] Removed old addon_logo_cache")
+
+        if migrated:
+            # Save the migrated config
+            try:
+                with open(self.config_path, 'w') as f:
+                    json.dump(config, f, indent=2)
+                logger.info("[CONFIG MIGRATION] Saved migrated configuration")
+            except Exception as e:
+                logger.error(f"[CONFIG MIGRATION] Failed to save migrated config: {e}")
+
+        return config
 
     def save(self, config: Dict[str, Any] = None) -> bool:
         """Save configuration to disk"""
@@ -138,6 +213,16 @@ class ConfigManager:
         """Reset configuration to defaults"""
         self.config = self.DEFAULT_CONFIG.copy()
         return self.save()
+
+    def get_addons(self) -> List:
+        """Get addon URLs as Addon objects"""
+        from addon import addon_list_from_config
+        return addon_list_from_config(self.config.get('addon_urls', []))
+
+    def set_addons(self, addons: List) -> bool:
+        """Set addon URLs from list of Addon objects"""
+        from addon import addon_list_to_config
+        return self.set('addon_urls', addon_list_to_config(addons))
 
     def to_cli_args(self) -> List[str]:
         """Convert configuration to CLI arguments for streams_prefetcher.py"""

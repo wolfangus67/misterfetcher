@@ -4132,8 +4132,27 @@ function dismissCompletion() {
     loadJobStatus('dismissCompletion');
 }
 
-function dismissError() {
+async function dismissError() {
     addDebugLog(`[ERROR DISMISS] dismissError() called`);
+
+    try {
+        // Call reset API to clear failed status
+        const response = await fetch('/api/job/reset', { method: 'POST' });
+        const data = await response.json();
+
+        if (data.success) {
+            addDebugLog(`[ERROR DISMISS] ✅ Status reset successful: ${data.message}`);
+            showNotification(data.message, 'success');
+        } else {
+            addDebugLog(`[ERROR DISMISS] ❌ Reset failed: ${data.error}`);
+            showNotification(data.error || 'Failed to reset job status', 'error');
+        }
+    } catch (error) {
+        addDebugLog(`[ERROR DISMISS] ❌ Error calling reset API: ${error.message}`);
+        console.error('Error resetting job status:', error);
+        showNotification('Error resetting job status', 'error');
+    }
+
     // Load actual status from backend (will show scheduled screen if schedules exist)
     loadJobStatus('dismissError');
 }
