@@ -5,6 +5,21 @@ All notable changes to Streams Prefetcher will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.2] - 2025-10-18
+
+### Added
+- Addon class for better addon management with OOP structure, URL validation, and manifest fetching
+- Item class to centralize movie/series/episode data representation
+- Job reset API endpoint (POST /api/job/reset) to reset terminal job states back to idle
+- Comprehensive DEBUG-level logging throughout wrapper, prefetcher, and scheduler
+- JSON structured logging support with detailed item information
+
+### Changed
+- Enhanced logging to display item titles and years instead of just IDs for better readability
+- Automatic migration of old addon URL tuple format to new dictionary format
+- Merged addon_name_cache and addon_logo_cache into addon objects for cleaner config
+- Improved error handling with JSON-serializable error messages
+
 ## [0.13.1] - 2025-10-17
 
 ### Fixed
