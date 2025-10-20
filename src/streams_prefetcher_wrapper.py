@@ -242,6 +242,10 @@ class StreamsPrefetcherWrapper:
                     'service_cache_requests_limit': self.prefetcher.max_cache_requests_global,
                 }
 
+                # Debug logging for cache requests
+                if self.prefetcher.cache_requests_sent_count > 0:
+                    logger.debug(f"📊 PROGRESS UPDATE: Cache requests - sent: {self.prefetcher.cache_requests_sent_count}, successful: {self.prefetcher.cache_requests_successful_count}")
+
                 # Add page fetching information
                 if mode == 'fetching':
                     progress_data['current_page'] = kwargs.get('fetched_items', 0)

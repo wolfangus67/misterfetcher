@@ -1143,6 +1143,10 @@ class StreamsPrefetcher:
                                 if url:
                                     uncached_streams.append(url)
 
+                        # Debug: Log stream analysis
+                        logger.debug(f"   📊 Stream Analysis: {len(streams)} total, {cached_count} cached (pattern: '{self.cached_stream_regex}'), {len(uncached_streams)} uncached URLs found")
+                        logger.debug(f"   📊 Threshold check: cached_count({cached_count}) <= threshold({self.cached_streams_count_threshold}) = {cached_count <= self.cached_streams_count_threshold}")
+
                         # Check if we need to trigger more caching
                         if cached_count <= self.cached_streams_count_threshold:
                             # Calculate dynamic attempt limit: max(goal * 3, 5)
@@ -1151,6 +1155,9 @@ class StreamsPrefetcher:
                                 max(self.max_cache_requests_per_item * 3, 5),  # Dynamic: at least 5, or 3x success goal
                                 self.max_cache_requests_global - self.cache_requests_sent_count  # Global limit
                             )
+
+                            logger.debug(f"   📊 Attempt calculation: min({len(uncached_streams)} uncached, {max(self.max_cache_requests_per_item * 3, 5)} per-item, {self.max_cache_requests_global - self.cache_requests_sent_count} remaining) = {max_attempts_allowed}")
+                            logger.debug(f"   📊 Config: max_per_item={self.max_cache_requests_per_item}, global_limit={self.max_cache_requests_global}, sent_so_far={self.cache_requests_sent_count}")
 
                             successful_requests = 0
                             attempts = 0
@@ -1166,23 +1173,36 @@ class StreamsPrefetcher:
                                    self.cache_requests_sent_count < self.max_cache_requests_global):
 
                                 try:
-                                    head_response = self.session.head(
+                                    # Use GET with Range header to trigger caching without downloading full file
+                                    # Many streaming services don't support HEAD requests (return 405)
+                                    head_response = self.session.get(
                                         uncached_streams[attempts],
-                                        timeout=self.network_request_timeout
+                                        timeout=self.network_request_timeout,
+                                        allow_redirects=True,  # Follow redirects to get final status
+                                        headers={'Range': 'bytes=0-0'},  # Request only first byte to trigger cache
+                                        stream=True  # Don't download body automatically
                                     )
 
-                                    # Check if request was successful (2xx status code)
-                                    if 200 <= head_response.status_code < 300:
+                                    # Check if request was successful (2xx or 3xx status code)
+                                    # 3xx redirects are considered successful since the service responded and is providing the stream
+                                    if 200 <= head_response.status_code < 400:
                                         successful_requests += 1
                                         self.cache_requests_successful_count += 1
+                                        if 300 <= head_response.status_code < 400:
+                                            logger.debug(f"   ✅ Cache request successful (redirect): {uncached_streams[attempts][:80]}... (status: {head_response.status_code})")
+                                        else:
+                                            logger.debug(f"   ✅ Cache request successful: {uncached_streams[attempts][:80]}... (status: {head_response.status_code})")
+                                    else:
+                                        logger.debug(f"   ⚠️ Cache request failed (status {head_response.status_code}): {uncached_streams[attempts][:80]}...")
 
                                     head_response.close()
                                     self.cache_requests_sent_count += 1
                                     attempts += 1
                                     time.sleep(self.delay)
 
-                                except requests.exceptions.RequestException:
+                                except requests.exceptions.RequestException as e:
                                     # Failed attempt - count it and try next URL
+                                    logger.debug(f"   ❌ Cache request failed: {uncached_streams[attempts][:80]}... (error: {type(e).__name__}: {str(e)[:100]})")
                                     self.cache_requests_sent_count += 1
                                     attempts += 1
 
@@ -1571,6 +1591,16 @@ class StreamsPrefetcher:
                             item_statuses_on_page.append('successful')
                         else: failed_count += 1; item_statuses_on_page.append('failed')
 
+                        # Update dashboard immediately with latest cache request counts (bypass throttling)
+                        if self.cache_uncached_streams_enabled:
+                            dashboard_args['item_statuses'] = item_statuses_on_page
+                            self.progress_tracker.redraw_dashboard(
+                                current_title=item_obj.get_dashboard_title(),
+                                current_imdb_id=item_obj.imdb_id,
+                                current_item_type=item_obj.item_type,
+                                **dashboard_args
+                            )
+
                     elif item_obj.item_type == 'series':
                         # Use already created Item object instead of creating duplicate
                         self.progress_tracker.redraw_dashboard(
@@ -1656,6 +1686,16 @@ class StreamsPrefetcher:
 
                             if self.prefetch_streams(ep_item):
                                self.update_cache(ep_item); series_had_success = True; self.prefetched_episodes_count += 1
+
+                            # Update dashboard immediately with latest cache request counts (bypass throttling)
+                            if self.cache_uncached_streams_enabled:
+                                dashboard_args['item_statuses'] = item_statuses_on_page
+                                self.progress_tracker.redraw_dashboard(
+                                    current_title=ep_item.get_dashboard_title(),
+                                    current_imdb_id=ep_item.imdb_id,
+                                    current_item_type=ep_item.item_type,
+                                    **dashboard_args
+                                )
 
                         if series_had_success:
                             success_count += 1; prefetched_in_this_catalog += 1; self.prefetched_series_count += 1
