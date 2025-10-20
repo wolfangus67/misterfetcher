@@ -3784,7 +3784,7 @@ function updateProgressInfo(progress, preserveActionText = false) {
     const catalogMode = progress.catalog_mode || '';
 
     if (imdbId && (itemType === 'movie' || itemType === 'series' || itemType === 'episode')) {
-        updateRPDBPoster(imdbId, currentTitle);
+        updateRPDBPoster(imdbId, currentTitle, itemType);
         // Hide the current action text when showing poster (unless preserving it for paused state)
         if (!preserveActionText) {
             document.querySelector('.current-action').style.display = 'none';
@@ -3857,8 +3857,8 @@ function updateProgressInfo(progress, preserveActionText = false) {
 /**
  * Update RPDB poster for currently prefetching item
  */
-function updateRPDBPoster(imdbId, fullTitle) {
-    addDebugLog(`[RPDB] updateRPDBPoster called - IMDb ID: ${imdbId}, Title: ${fullTitle}`);
+function updateRPDBPoster(imdbId, fullTitle, itemType) {
+    addDebugLog(`[RPDB] updateRPDBPoster called - IMDb ID: ${imdbId}, Title: ${fullTitle}, Type: ${itemType}`);
 
     const container = document.getElementById('currently-prefetching');
 
@@ -3881,25 +3881,37 @@ function updateRPDBPoster(imdbId, fullTitle) {
 
     let displayTitleYear = '';
     let displayEpisode = '';
-    let itemType = 'Movie'; // Default
 
-    // Try to match episode format first (has S##E## at the end)
-    const episodeMatch = fullTitle.match(/Prefetching streams for Series: (.+?)\s+(S\d+E\d+)$/);
-    if (episodeMatch) {
+    // Use the itemType parameter directly instead of parsing from title
+    // Normalize itemType to proper display format
+    let displayType = itemType ? itemType.charAt(0).toUpperCase() + itemType.slice(1) : 'Movie';
+
+    if (itemType === 'episode') {
         // Episode format: "Breaking Bad (2008) S01E01"
-        const seriesWithYear = episodeMatch[1]; // "Breaking Bad (2008)"
-        displayEpisode = episodeMatch[2]; // "S01E01"
-        displayTitleYear = seriesWithYear;
-        itemType = 'Series';
+        const episodeMatch = fullTitle.match(/Prefetching streams for Series: (.+?)\s+(S\d+E\d+)$/);
+        if (episodeMatch) {
+            const seriesWithYear = episodeMatch[1]; // "Breaking Bad (2008)"
+            displayEpisode = episodeMatch[2]; // "S01E01"
+            displayTitleYear = seriesWithYear;
+            displayType = 'Series'; // Show "Series" for episodes
 
-        // Show episode line
-        episodeEl.textContent = displayEpisode;
-        episodeEl.style.display = 'block';
+            // Show episode line
+            episodeEl.textContent = displayEpisode;
+            episodeEl.style.display = 'block';
+        } else {
+            // Fallback if episode format doesn't match
+            const match = fullTitle.match(/Prefetching streams for .+?: (.+)$/);
+            if (match) {
+                displayTitleYear = match[1];
+            } else {
+                displayTitleYear = fullTitle;
+            }
+            episodeEl.style.display = 'none';
+        }
     } else {
         // Movie or series format: "The Whale (2022)" or "Breaking Bad (2008-2013)"
         const match = fullTitle.match(/Prefetching streams for (Movie|Series): (.+)$/);
         if (match) {
-            itemType = match[1]; // "Movie" or "Series"
             displayTitleYear = match[2];
         } else {
             displayTitleYear = fullTitle;
@@ -3911,7 +3923,15 @@ function updateRPDBPoster(imdbId, fullTitle) {
 
     // Update text immediately
     titleYearEl.textContent = displayTitleYear;
-    typeBadgeEl.textContent = itemType;
+    typeBadgeEl.textContent = displayType;
+
+    // Update badge color based on type
+    typeBadgeEl.className = 'item-type-badge';
+    if (itemType === 'movie') {
+        typeBadgeEl.classList.add('movie');
+    } else if (itemType === 'series' || itemType === 'episode') {
+        typeBadgeEl.classList.add('series');
+    }
 
     // Show container
     container.style.display = 'flex';

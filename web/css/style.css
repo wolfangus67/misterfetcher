@@ -1670,6 +1670,20 @@ footer {
     color: #93c5fd;
 }
 
+/* Movie type badge - Blue color (default) */
+.item-type-badge.movie {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(37, 99, 235, 0.15));
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    color: #93c5fd;
+}
+
+/* Series type badge - Purple color */
+.item-type-badge.series {
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.15), rgba(147, 51, 234, 0.15));
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    color: #c4b5fd;
+}
+
 /* Stats Grid */
 .stats-grid {
     display: grid;

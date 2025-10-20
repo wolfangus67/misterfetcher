@@ -40,8 +40,16 @@ class Item:
 
     def get_dashboard_title(self) -> str:
         """Get title for dashboard progress display"""
-        type_str = self.item_type.capitalize()
-        return f"Prefetching streams for {type_str}: {self.title}"
+        if self.is_episode():
+            # Episodes: "Prefetching streams for Series: Series Title (Year) S01E01"
+            year_part = f" ({self.year})" if self.year else ""
+            episode_part = f" S{self.season:02d}E{self.episode:02d}"
+            return f"Prefetching streams for Series: {self.title}{year_part}{episode_part}"
+        else:
+            # Movies/Series: "Prefetching streams for Movie/Series: Title (Year)"
+            type_str = self.item_type.capitalize()
+            year_part = f" ({self.year})" if self.year else ""
+            return f"Prefetching streams for {type_str}: {self.title}{year_part}"
 
     def is_episode(self) -> bool:
         """Check if this Item is an episode"""
