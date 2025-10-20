@@ -5,6 +5,24 @@ All notable changes to Streams Prefetcher will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.3] - 2025-10-20
+
+### Added
+- Validation to prevent deletion of last catalog or stream addon
+
+### Changed
+- Replace plain text catalog types with styled gradient badges in catalog selection list
+- Optimize Item object creation and standardize Addon usage across codebase
+
+### Fixed
+- Cache request success tracking now displays correct percentage
+- "Processing Unknown" message during job initialization now shows "Starting up..."
+- Type badges now display correctly for series and episodes
+- NameError when using movie_item variable (replaced with item_obj)
+- Type badge positioning with proper spacing next to catalog names
+
+Closes GitLab #6, #7, #8, #9
+
 ## [0.13.2] - 2025-10-18
 
 ### Added
