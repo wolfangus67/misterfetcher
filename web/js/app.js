@@ -2666,8 +2666,8 @@ function renderCatalogList(catalogs) {
             <span class="drag-handle">⋮⋮</span>
             <input type="checkbox" ${catalog.enabled ? 'checked' : ''} onchange="toggleCatalog('${catalog.id}', this.checked)">
             <div class="catalog-info">
-                <div class="catalog-name">${catalog.name}</div>
-                <div class="catalog-meta">Type: <strong>${typeCapitalized}</strong>${addonBadge ? ' | ' + addonBadge : ''}</div>
+                <div class="catalog-name">${catalog.name} <span class="item-type-badge ${catalog.type}">${typeCapitalized}</span></div>
+                ${addonBadge ? '<div class="catalog-meta">' + addonBadge + '</div>' : ''}
             </div>
         `;
 
@@ -3209,8 +3209,8 @@ function updateJobStatusUI(status, caller = 'unknown') {
             currentAction.style.display = 'block';
             if (currentAction.textContent === 'Prefetch Paused') {
                 // Restore to processing text based on current catalog
-                const catalogName = status.progress?.catalog_name || 'catalog';
-                currentAction.textContent = `Processing ${catalogName}`;
+                const catalogName = status.progress?.catalog_name || 'Unknown';
+                currentAction.textContent = catalogName === 'Unknown' ? 'Starting up...' : `Processing ${catalogName}`;
             }
         }
 
@@ -3864,8 +3864,8 @@ function updateProgressInfo(progress, preserveActionText = false) {
         // Show catalog processing info when not showing poster (unless preserving text for paused state)
         if (!preserveActionText) {
             document.querySelector('.current-action').style.display = 'block';
-            let actionText = `Processing ${catalogName}`;
-            if (catalogMode) {
+            let actionText = catalogName === 'Unknown' ? 'Starting up...' : `Processing ${catalogName}`;
+            if (catalogMode && catalogName !== 'Unknown') {
                 actionText += ` (${catalogMode})`;
             }
             document.querySelector('.current-action').textContent = actionText;
@@ -3874,7 +3874,7 @@ function updateProgressInfo(progress, preserveActionText = false) {
 
     // Update current catalog name with type
     const catalogType = catalogMode ? catalogMode.charAt(0).toUpperCase() + catalogMode.slice(1) : '';
-    const catalogDisplayText = catalogType ? `${catalogName} (${catalogType})` : catalogName;
+    const catalogDisplayText = catalogName === 'Unknown' ? 'Starting up...' : (catalogType ? `${catalogName} (${catalogType})` : catalogName);
     document.getElementById('current-catalog-name').textContent = catalogDisplayText;
 
     // Handle page fetching status - show in subtitle instead of separate card
@@ -3885,7 +3885,7 @@ function updateProgressInfo(progress, preserveActionText = false) {
         currentAction.textContent = `Fetching Page ${pageNum}`;
     } else {
         // Show processing status
-        currentAction.textContent = `Processing ${catalogName}`;
+        currentAction.textContent = catalogName === 'Unknown' ? 'Starting up...' : `Processing ${catalogName}`;
     }
 
     // Calculate and update overall progress
