@@ -5,6 +5,18 @@ All notable changes to Streams Prefetcher will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.4] - 2025-10-20
+
+### Changed
+- Refactor stream caching configuration with explicit success vs attempt limits
+- Replace hardcoded retry formula with user-configurable parameters for better control
+- Add max_cache_request_attempts_per_item parameter (default: 3)
+- Rename max_cache_requests_per_item to max_successful_cache_requests_per_item
+
+### Added
+- Frontend validation: attempts must be >= successful requests with error notification
+- Enhanced tooltips explaining the multi-limit system (per-item successful, per-item attempts, global)
+
 ## [0.13.3] - 2025-10-20
 
 ### Added
