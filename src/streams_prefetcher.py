@@ -1565,8 +1565,8 @@ class StreamsPrefetcher:
                         if self._check_time_limit():
                             break
 
-                        if self.prefetch_streams(movie_item):
-                            self.update_cache(movie_item)
+                        if self.prefetch_streams(item_obj):
+                            self.update_cache(item_obj)
                             success_count += 1; prefetched_in_this_catalog += 1; self.prefetched_movies_count += 1
                             item_statuses_on_page.append('successful')
                         else: failed_count += 1; item_statuses_on_page.append('failed')

@@ -1,0 +1,4 @@
+# Test requirements for streams-prefetcher
+pytest>=7.0.0
+pytest-mock>=3.10.0
+requests>=2.31.0
