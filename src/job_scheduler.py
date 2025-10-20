@@ -334,7 +334,8 @@ class JobScheduler:
         if cache_uncached.get('enabled', False):
             logger.debug(f"   • Cached stream regex: '{cache_uncached.get('cached_stream_regex', '⚡')}'")
             logger.debug(f"   • Skip streams regex: '{cache_uncached.get('skip_streams_regex', '')}'")
-            logger.debug(f"   • Max cache requests per item: {cache_uncached.get('max_cache_requests_per_item', 1)}")
+            logger.debug(f"   • Max successful cache requests per item: {cache_uncached.get('max_successful_cache_requests_per_item', 1)}")
+            logger.debug(f"   • Max cache request attempts per item: {cache_uncached.get('max_cache_request_attempts_per_item', 3)}")
             logger.debug(f"   • Max cache requests global: {cache_uncached.get('max_cache_requests_global', 50)}")
 
         # Log memory usage (if psutil available)

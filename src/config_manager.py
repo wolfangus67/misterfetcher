@@ -40,7 +40,8 @@ class ConfigManager:
             'enabled': False,
             'cached_stream_regex': '⚡',
             'skip_streams_regex': '',
-            'max_cache_requests_per_item': 1,
+            'max_successful_cache_requests_per_item': 1,
+            'max_cache_request_attempts_per_item': 3,
             'max_cache_requests_global': 50,
             'cached_streams_count_threshold': 0
         }

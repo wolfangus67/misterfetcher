@@ -1426,7 +1426,8 @@ function populateConfigurationForm(config) {
     document.getElementById('cache-uncached-streams-enabled').checked = cacheUncachedConfig.enabled || false;
     document.getElementById('cached-stream-regex').value = cacheUncachedConfig.cached_stream_regex || '⚡';
     document.getElementById('skip-streams-regex').value = cacheUncachedConfig.skip_streams_regex || '';
-    document.getElementById('max-cache-requests-per-item').value = cacheUncachedConfig.max_cache_requests_per_item || 1;
+    document.getElementById('max-successful-cache-requests-per-item').value = cacheUncachedConfig.max_successful_cache_requests_per_item || 1;
+    document.getElementById('max-cache-request-attempts-per-item').value = cacheUncachedConfig.max_cache_request_attempts_per_item || 3;
     document.getElementById('max-cache-requests-global').value = cacheUncachedConfig.max_cache_requests_global || 50;
     document.getElementById('cached-streams-count-threshold').value = cacheUncachedConfig.cached_streams_count_threshold || 0;
     toggleCacheUncachedStreams(); // Apply enabled/disabled state to fields
@@ -2038,11 +2039,23 @@ async function saveConfigurationSilent() {
                 enabled: document.getElementById('cache-uncached-streams-enabled').checked,
                 cached_stream_regex: document.getElementById('cached-stream-regex').value.trim(),
                 skip_streams_regex: document.getElementById('skip-streams-regex').value.trim(),
-                max_cache_requests_per_item: parseInt(document.getElementById('max-cache-requests-per-item').value),
+                max_successful_cache_requests_per_item: parseInt(document.getElementById('max-successful-cache-requests-per-item').value),
+                max_cache_request_attempts_per_item: parseInt(document.getElementById('max-cache-request-attempts-per-item').value),
                 max_cache_requests_global: parseInt(document.getElementById('max-cache-requests-global').value),
                 cached_streams_count_threshold: parseInt(document.getElementById('cached-streams-count-threshold').value)
             }
         };
+
+        // Validate: max_cache_request_attempts_per_item must be >= max_successful_cache_requests_per_item
+        const maxSuccessful = config.cache_uncached_streams.max_successful_cache_requests_per_item;
+        const maxAttempts = config.cache_uncached_streams.max_cache_request_attempts_per_item;
+        if (maxAttempts < maxSuccessful) {
+            showErrorNotification(
+                'Invalid Configuration',
+                `"Max Stream Caching Request Attempts per Item" (${maxAttempts}) must be greater than or equal to "Max Successful Stream Caching Requests per Item" (${maxSuccessful}).`
+            );
+            return; // Block save
+        }
 
         const response = await fetch('/api/config', {
             method: 'POST',
@@ -2118,11 +2131,24 @@ async function saveConfiguration() {
                 enabled: document.getElementById('cache-uncached-streams-enabled').checked,
                 cached_stream_regex: document.getElementById('cached-stream-regex').value.trim(),
                 skip_streams_regex: document.getElementById('skip-streams-regex').value.trim(),
-                max_cache_requests_per_item: parseInt(document.getElementById('max-cache-requests-per-item').value),
+                max_successful_cache_requests_per_item: parseInt(document.getElementById('max-successful-cache-requests-per-item').value),
+                max_cache_request_attempts_per_item: parseInt(document.getElementById('max-cache-request-attempts-per-item').value),
                 max_cache_requests_global: parseInt(document.getElementById('max-cache-requests-global').value),
                 cached_streams_count_threshold: parseInt(document.getElementById('cached-streams-count-threshold').value)
             }
         };
+
+        // Validate: max_cache_request_attempts_per_item must be >= max_successful_cache_requests_per_item
+        const maxSuccessful = config.cache_uncached_streams.max_successful_cache_requests_per_item;
+        const maxAttempts = config.cache_uncached_streams.max_cache_request_attempts_per_item;
+        if (maxAttempts < maxSuccessful) {
+            showErrorNotification(
+                'Invalid Configuration',
+                `"Max Stream Caching Request Attempts per Item" (${maxAttempts}) must be greater than or equal to "Max Successful Stream Caching Requests per Item" (${maxSuccessful}).`
+            );
+            btn.disabled = false;
+            return; // Block save
+        }
 
         // Validate configuration
         const validationErrors = validateConfiguration(config, addonUrls);

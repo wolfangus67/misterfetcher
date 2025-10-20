@@ -576,7 +576,7 @@ def format_time_string(seconds: float) -> str:
         return " ".join(parts)
 
 class StreamsPrefetcher:
-    def __init__(self, addon_urls: List[Tuple[str, str]] = None, addons: List[Addon] = None, movies_global_limit: int = -1, series_global_limit: int = -1, movies_per_catalog: int = 50, series_per_catalog: int = 3, items_per_mixed_catalog: int = 20, delay: float = 2, network_request_timeout: int = 30, proxy_url: Optional[str] = None, randomize_catalogs: bool = False, randomize_items: bool = False, cache_validity_seconds: int = 259200, max_execution_time: int = -1, enable_logging: bool = False, cache_uncached_streams_enabled: bool = False, cached_stream_regex: str = '⚡', skip_streams_regex: str = '', max_cache_requests_per_item: int = 1, max_cache_requests_global: int = 50, cached_streams_count_threshold: int = 0, addon_name_cache: Optional[Dict[str, str]] = None, scheduler=None):
+    def __init__(self, addon_urls: List[Tuple[str, str]] = None, addons: List[Addon] = None, movies_global_limit: int = -1, series_global_limit: int = -1, movies_per_catalog: int = 50, series_per_catalog: int = 3, items_per_mixed_catalog: int = 20, delay: float = 2, network_request_timeout: int = 30, proxy_url: Optional[str] = None, randomize_catalogs: bool = False, randomize_items: bool = False, cache_validity_seconds: int = 259200, max_execution_time: int = -1, enable_logging: bool = False, cache_uncached_streams_enabled: bool = False, cached_stream_regex: str = '⚡', skip_streams_regex: str = '', max_successful_cache_requests_per_item: int = 1, max_cache_request_attempts_per_item: int = 3, max_cache_requests_global: int = 50, cached_streams_count_threshold: int = 0, addon_name_cache: Optional[Dict[str, str]] = None, scheduler=None):
         # Handle old format for backward compatibility
         if addons is not None:
             # New format: use Addon objects directly
@@ -609,7 +609,8 @@ class StreamsPrefetcher:
         self.cache_uncached_streams_enabled = cache_uncached_streams_enabled
         self.cached_stream_regex = cached_stream_regex
         self.skip_streams_regex = skip_streams_regex
-        self.max_cache_requests_per_item = max_cache_requests_per_item
+        self.max_successful_cache_requests_per_item = max_successful_cache_requests_per_item
+        self.max_cache_request_attempts_per_item = max_cache_request_attempts_per_item
         self.max_cache_requests_global = max_cache_requests_global
         self.cached_streams_count_threshold = cached_streams_count_threshold
         self.cache_requests_sent_count = 0  # Track global count
@@ -1149,15 +1150,15 @@ class StreamsPrefetcher:
 
                         # Check if we need to trigger more caching
                         if cached_count <= self.cached_streams_count_threshold:
-                            # Calculate dynamic attempt limit: max(goal * 3, 5)
+                            # Calculate max attempts allowed from user config and available streams
                             max_attempts_allowed = min(
                                 len(uncached_streams),  # Can't try more than available
-                                max(self.max_cache_requests_per_item * 3, 5),  # Dynamic: at least 5, or 3x success goal
+                                self.max_cache_request_attempts_per_item,  # User-specified max attempts per item
                                 self.max_cache_requests_global - self.cache_requests_sent_count  # Global limit
                             )
 
-                            logger.debug(f"   📊 Attempt calculation: min({len(uncached_streams)} uncached, {max(self.max_cache_requests_per_item * 3, 5)} per-item, {self.max_cache_requests_global - self.cache_requests_sent_count} remaining) = {max_attempts_allowed}")
-                            logger.debug(f"   📊 Config: max_per_item={self.max_cache_requests_per_item}, global_limit={self.max_cache_requests_global}, sent_so_far={self.cache_requests_sent_count}")
+                            logger.debug(f"   📊 Attempt calculation: min({len(uncached_streams)} uncached, {self.max_cache_request_attempts_per_item} max-attempts-per-item, {self.max_cache_requests_global - self.cache_requests_sent_count} remaining) = {max_attempts_allowed}")
+                            logger.debug(f"   📊 Config: max_successful_per_item={self.max_successful_cache_requests_per_item}, max_attempts_per_item={self.max_cache_request_attempts_per_item}, global_limit={self.max_cache_requests_global}, sent_so_far={self.cache_requests_sent_count}")
 
                             successful_requests = 0
                             attempts = 0
@@ -1168,7 +1169,7 @@ class StreamsPrefetcher:
                                 sys.stdout.flush()
 
                             # Try URLs until we get enough successes or run out of attempts
-                            while (successful_requests < self.max_cache_requests_per_item and
+                            while (successful_requests < self.max_successful_cache_requests_per_item and
                                    attempts < max_attempts_allowed and
                                    self.cache_requests_sent_count < self.max_cache_requests_global):
 
