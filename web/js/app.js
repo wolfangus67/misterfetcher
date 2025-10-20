@@ -1558,8 +1558,78 @@ function addAddonUrl(type) {
     // Don't auto-save here - will save after manifest is fetched
 }
 
+/**
+ * Count the number of catalog and stream addons
+ * Note: 'both' type counts towards both catalog and stream
+ * @returns {Object} { catalogCount: number, streamCount: number }
+ */
+function countAddonTypes() {
+    let catalogCount = 0;
+    let streamCount = 0;
+
+    ['both', 'catalog', 'stream'].forEach(type => {
+        const container = document.getElementById(`addon-list-${type}`);
+        const items = container.querySelectorAll('.addon-item');
+        const count = items.length;
+
+        if (type === 'both') {
+            // 'both' type counts towards both catalog and stream
+            catalogCount += count;
+            streamCount += count;
+        } else if (type === 'catalog') {
+            catalogCount += count;
+        } else if (type === 'stream') {
+            streamCount += count;
+        }
+    });
+
+    return { catalogCount, streamCount };
+}
+
 function removeAddonUrl(btn) {
-    btn.closest('.addon-item').remove();
+    const addonItem = btn.closest('.addon-item');
+    const addonType = addonItem.dataset.type;
+
+    // Count current addons
+    const { catalogCount, streamCount } = countAddonTypes();
+
+    // Check if deletion would result in 0 catalog or stream addons
+    let wouldRemoveCatalog = false;
+    let wouldRemoveStream = false;
+
+    if (addonType === 'both') {
+        // Deleting 'both' affects both counts
+        wouldRemoveCatalog = (catalogCount === 1);
+        wouldRemoveStream = (streamCount === 1);
+    } else if (addonType === 'catalog') {
+        wouldRemoveCatalog = (catalogCount === 1);
+    } else if (addonType === 'stream') {
+        wouldRemoveStream = (streamCount === 1);
+    }
+
+    // Show error if we'd end up with 0 of either type
+    if (wouldRemoveCatalog && wouldRemoveStream) {
+        showErrorNotification(
+            'Cannot Delete Addon',
+            'Cannot delete the last remaining addon. You must have at least one catalog addon and one stream addon.'
+        );
+        return;
+    } else if (wouldRemoveCatalog) {
+        showErrorNotification(
+            'Cannot Delete Addon',
+            'Cannot delete the last remaining catalog addon. You must have at least one catalog addon.'
+        );
+        return;
+    } else if (wouldRemoveStream) {
+        showErrorNotification(
+            'Cannot Delete Addon',
+            'Cannot delete the last remaining stream addon. You must have at least one stream addon.'
+        );
+        return;
+    }
+
+    // Safe to delete - proceed
+    addonItem.remove();
     // Save immediately when removing (this is a complete action)
     updateAddonUrlsConfig();
 }
