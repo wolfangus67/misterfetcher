@@ -73,32 +73,39 @@ job_scheduler.register_callback(broadcast_event)
 
 def validate_addon_urls(addon_urls):
     """Validate addon URLs list"""
+    from addon import addon_list_from_config
+
     errors = []
 
     if not addon_urls or len(addon_urls) == 0:
         errors.append('At least one addon URL is required')
         return errors
 
+    # Convert to Addon objects for proper validation
+    try:
+        addons = addon_list_from_config(addon_urls)
+    except Exception as e:
+        errors.append(f'Failed to parse addon configuration: {str(e)}')
+        return errors
+
     # Check for at least one catalog addon
-    has_catalog = any(item['type'] in ['catalog', 'both'] for item in addon_urls)
+    has_catalog = any(addon.type in ['catalog', 'both'] for addon in addons)
     if not has_catalog:
         errors.append('At least one catalog addon (type "catalog" or "both") is required')
 
     # Check for at least one stream addon
-    has_stream = any(item['type'] in ['stream', 'both'] for item in addon_urls)
+    has_stream = any(addon.type in ['stream', 'both'] for addon in addons)
     if not has_stream:
         errors.append('At least one stream addon (type "stream" or "both") is required')
 
-    # Validate each URL
-    for idx, item in enumerate(addon_urls):
-        if not item.get('url'):
-            errors.append(f'Addon URL #{idx + 1} cannot be empty')
-        elif not item['url'].strip():
+    # Validate each addon using Addon object properties
+    for idx, addon in enumerate(addons):
+        if not addon.url or not addon.url.strip():
             errors.append(f'Addon URL #{idx + 1} cannot be empty')
 
-        addon_type = item.get('type', '')
-        if addon_type not in ['catalog', 'stream', 'both']:
-            errors.append(f'Invalid addon type for URL #{idx + 1}: {addon_type}')
+        # Validate addon type (already validated by Addon class but keeping for clarity)
+        if addon.type not in ['catalog', 'stream', 'both']:
+            errors.append(f'Invalid addon type for URL #{idx + 1}: {addon.type}')
 
     return errors
 
@@ -299,12 +306,16 @@ def load_catalogs():
         catalogs = []
         errors = []
 
-        for item in addon_urls:
-            if item['type'] in ['catalog', 'both']:
+        # Convert to Addon objects for consistent usage
+        from addon import addon_list_from_config
+        addons = addon_list_from_config(addon_urls)
+
+        for addon in addons:
+            if addon.type in ['catalog', 'both']:
                 try:
-                    # Fetch manifest
+                    # Fetch manifest using Addon object URL
                     response = requests.get(
-                        f"{item['url']}/manifest.json",
+                        f"{addon.url}/manifest.json",
                         timeout=10,
                         headers={
                             'User-Agent': 'Streams Prefetcher/1.0',
@@ -314,8 +325,8 @@ def load_catalogs():
                     response.raise_for_status()
                     manifest = response.json()
 
-                    # Extract addon name
-                    addon_name = manifest.get('name', 'Unknown Addon')
+                    # Extract addon name using Addon object if available, otherwise from manifest
+                    addon_name = addon.name if addon.name else manifest.get('name', 'Unknown Addon')
 
                     # Process catalogs
                     for catalog in manifest.get('catalogs', []):
@@ -338,18 +349,18 @@ def load_catalogs():
                             cat_type = 'mixed'
 
                         catalogs.append({
-                            'id': create_catalog_id(item['url'], catalog.get('id', ''), cat_type),
+                            'id': create_catalog_id(addon.url, catalog.get('id', ''), cat_type),
                             'name': catalog.get('name', 'Unknown'),
                             'type': cat_type,
                             'addon_name': addon_name,
-                            'addon_url': item['url'],
+                            'addon_url': addon.url,
                             'enabled': True,  # Default enabled
                             'order': len(catalogs)
                         })
 
                 except Exception as e:
                     errors.append({
-                        'url': item['url'],
+                        'url': addon.url,
                         'error': str(e)
                     })
 
@@ -357,7 +368,7 @@ def load_catalogs():
             'success': True,
             'catalogs': catalogs,
             'errors': errors,
-            'total_addons': len([i for i in addon_urls if i['type'] in ['catalog', 'both']]),
+            'total_addons': len([addon for addon in addons if addon.type in ['catalog', 'both']]),
             'total_catalogs': len(catalogs)
         })
 

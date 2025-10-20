@@ -1495,9 +1495,18 @@ class StreamsPrefetcher:
                             logger.debug("▶️ Job resumed")
 
                     if per_catalog_limit != -1 and prefetched_in_this_catalog >= per_catalog_limit: break
-                    item_type = item.get('type')
-                    if item_type == 'movie' and self.movies_global_limit != -1 and self.prefetched_movies_count >= self.movies_global_limit: continue
-                    if item_type == 'series' and self.series_global_limit != -1 and self.prefetched_series_count >= self.series_global_limit: continue
+
+                    # Create Item object early to use its properties for type checking
+                    # This ensures consistent usage of Item class instead of manual parsing
+                    item_obj = Item.from_catalog(item)
+                    if not item_obj:
+                        failed_count += 1
+                        item_statuses_on_page.append('failed')
+                        continue
+
+                    # Use Item object property for type checking instead of manual parsing
+                    if item_obj.item_type == 'movie' and self.movies_global_limit != -1 and self.prefetched_movies_count >= self.movies_global_limit: continue
+                    if item_obj.item_type == 'series' and self.series_global_limit != -1 and self.prefetched_series_count >= self.series_global_limit: continue
 
                     dashboard_args = {
                         'catalog_statuses': [c['status'] for c in self.progress_tracker.overall_catalogs],
@@ -1523,21 +1532,16 @@ class StreamsPrefetcher:
                         'max_execution_time': self.max_execution_time
                     }
 
-                    if item_type == 'movie':
-                        movie_item = Item.from_catalog(item, 'movie')
-                        if not movie_item:
-                            failed_count += 1
-                            item_statuses_on_page.append('failed')
-                            continue
-
+                    if item_obj.item_type == 'movie':
+                        # Use already created Item object instead of creating duplicate
                         self.progress_tracker.redraw_dashboard(
-                            current_title=movie_item.get_dashboard_title(),
-                            current_imdb_id=movie_item.imdb_id,
-                            current_item_type=movie_item.item_type,
+                            current_title=item_obj.get_dashboard_title(),
+                            current_imdb_id=item_obj.imdb_id,
+                            current_item_type=item_obj.item_type,
                             **dashboard_args
                         )
 
-                        if self.is_cache_valid(movie_item):
+                        if self.is_cache_valid(item_obj):
                             cached_count += 1
                             self.prefetched_cached_count += 1
                             item_statuses_on_page.append('cached')
@@ -1567,17 +1571,12 @@ class StreamsPrefetcher:
                             item_statuses_on_page.append('successful')
                         else: failed_count += 1; item_statuses_on_page.append('failed')
 
-                    elif item_type == 'series':
-                        series_item = Item.from_catalog(item, 'series')
-                        if not series_item:
-                            failed_count += 1
-                            item_statuses_on_page.append('failed')
-                            continue
-
+                    elif item_obj.item_type == 'series':
+                        # Use already created Item object instead of creating duplicate
                         self.progress_tracker.redraw_dashboard(
-                            current_title=series_item.get_dashboard_title(),
-                            current_imdb_id=series_item.imdb_id,
-                            current_item_type=series_item.item_type,
+                            current_title=item_obj.get_dashboard_title(),
+                            current_imdb_id=item_obj.imdb_id,
+                            current_item_type=item_obj.item_type,
                             **dashboard_args
                         )
 
@@ -1589,7 +1588,7 @@ class StreamsPrefetcher:
                             # This will block here until resumed
                             self.scheduler.pause_event.wait()
 
-                        episodes = self.get_series_episodes(series_item.get_series_imdb_id(), cat_addon_url)
+                        episodes = self.get_series_episodes(item_obj.get_series_imdb_id(), cat_addon_url)
                         if not episodes:
                             failed_count += 1
                             item_statuses_on_page.append('failed')
@@ -1603,7 +1602,7 @@ class StreamsPrefetcher:
                         # Check if series is already cached (75% threshold)
                         cached_episodes = 0
                         for ep in episodes:
-                            ep_item = self.create_episode_item(series_item, ep)
+                            ep_item = self.create_episode_item(item_obj, ep)
                             if self.is_cache_valid(ep_item):
                                 cached_episodes += 1
 
@@ -1626,7 +1625,7 @@ class StreamsPrefetcher:
                                 self.scheduler.pause_event.wait()  # Blocks if paused, returns immediately if not
 
                             # Create episode Item
-                            ep_item = self.create_episode_item(series_item, ep)
+                            ep_item = self.create_episode_item(item_obj, ep)
 
                             if self.is_cache_valid(ep_item):
                                 # Check if pause was requested
