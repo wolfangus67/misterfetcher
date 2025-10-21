@@ -576,7 +576,7 @@ def format_time_string(seconds: float) -> str:
         return " ".join(parts)
 
 class StreamsPrefetcher:
-    def __init__(self, addon_urls: List[Tuple[str, str]] = None, addons: List[Addon] = None, movies_global_limit: int = -1, series_global_limit: int = -1, movies_per_catalog: int = 50, series_per_catalog: int = 3, items_per_mixed_catalog: int = 20, delay: float = 2, network_request_timeout: int = 30, proxy_url: Optional[str] = None, randomize_catalogs: bool = False, randomize_items: bool = False, cache_validity_seconds: int = 259200, max_execution_time: int = -1, enable_logging: bool = False, cache_uncached_streams_enabled: bool = False, cached_stream_regex: str = '⚡', skip_streams_regex: str = '', max_successful_cache_requests_per_item: int = 1, max_cache_request_attempts_per_item: int = 3, max_cache_requests_global: int = 50, cached_streams_count_threshold: int = 0, addon_name_cache: Optional[Dict[str, str]] = None, scheduler=None):
+    def __init__(self, addon_urls: List[Tuple[str, str]] = None, addons: List[Addon] = None, movies_global_limit: int = -1, series_global_limit: int = -1, movies_per_catalog: int = 50, series_per_catalog: int = 3, items_per_mixed_catalog: int = 20, delay: float = 2, network_request_timeout: int = 30, proxy_url: Optional[str] = None, randomize_catalogs: bool = False, randomize_items: bool = False, cache_validity_seconds: int = 259200, max_execution_time: int = -1, enable_logging: bool = False, cache_uncached_streams_enabled: bool = False, cached_stream_regex: str = '⚡', skip_streams_regex: str = '', max_successful_cache_requests_per_item: int = 1, max_cache_request_attempts_per_item: int = 3, max_cache_requests_global: int = 50, cached_streams_count_threshold: int = 0, max_movie_items_per_catalog_fetch: int = -1, max_series_items_per_catalog_fetch: int = -1, max_mixed_items_per_catalog_fetch: int = -1, addon_name_cache: Optional[Dict[str, str]] = None, scheduler=None):
         # Handle old format for backward compatibility
         if addons is not None:
             # New format: use Addon objects directly
@@ -595,6 +595,9 @@ class StreamsPrefetcher:
         self.movies_per_catalog = movies_per_catalog
         self.series_per_catalog = series_per_catalog
         self.items_per_mixed_catalog = items_per_mixed_catalog
+        self.max_movie_items_per_catalog_fetch = max_movie_items_per_catalog_fetch
+        self.max_series_items_per_catalog_fetch = max_series_items_per_catalog_fetch
+        self.max_mixed_items_per_catalog_fetch = max_mixed_items_per_catalog_fetch
         self.delay = delay
         self.network_request_timeout = network_request_timeout if network_request_timeout != -1 else None
         self.proxy_url = proxy_url
@@ -881,7 +884,10 @@ class StreamsPrefetcher:
             'limits': {
                 'movies_global': self.movies_global_limit, 'series_global': self.series_global_limit,
                 'movies_per_catalog': self.movies_per_catalog, 'series_per_catalog': self.series_per_catalog,
-                'items_per_mixed_catalog': self.items_per_mixed_catalog
+                'items_per_mixed_catalog': self.items_per_mixed_catalog,
+                'max_movie_items_per_catalog_fetch': self.max_movie_items_per_catalog_fetch,
+                'max_series_items_per_catalog_fetch': self.max_series_items_per_catalog_fetch,
+                'max_mixed_items_per_catalog_fetch': self.max_mixed_items_per_catalog_fetch
             },
             'cache_validity_seconds': self.cache_validity_seconds,
             'proxy_url': self.proxy_url, 'delay': self.delay,
@@ -1423,14 +1429,30 @@ class StreamsPrefetcher:
             initial_cache_requests = self.cache_requests_sent_count  # Track cache requests at start
             initial_cache_requests_successful = self.cache_requests_successful_count  # Track successful cache requests at start
 
+            # Initialize fetch limit tracking for this catalog
+            fetched_items_count = 0
+            if cat_mode == 'movie':
+                fetch_limit = self.max_movie_items_per_catalog_fetch
+            elif cat_mode == 'series':
+                fetch_limit = self.max_series_items_per_catalog_fetch
+            else:  # mixed
+                fetch_limit = self.max_mixed_items_per_catalog_fetch
+
+            logger.debug(f"   • Fetch limit: {fetch_limit if fetch_limit != -1 else 'Unlimited'}")
+
             page = 0
             success_count, failed_count, cached_count, prefetched_in_this_catalog = 0, 0, 0, 0
-            
+
             while True:
                 # Check execution time limit before fetching new page (optimization to avoid unnecessary API call)
                 if self._check_time_limit():
                     break
-                
+
+                # Check if fetch limit already reached - if so, don't fetch more pages
+                if fetch_limit != -1 and fetched_items_count >= fetch_limit:
+                    logger.debug(f"🛑 Stopping page fetching - fetch limit reached for catalog '{cat_name}' ({fetched_items_count}/{fetch_limit} items)")
+                    break
+
                 if per_catalog_limit != -1 and prefetched_in_this_catalog >= per_catalog_limit: break
                 movies_limit_reached = self.movies_global_limit != -1 and self.prefetched_movies_count >= self.movies_global_limit
                 series_limit_reached = self.series_global_limit != -1 and self.prefetched_series_count >= self.series_global_limit
@@ -1473,6 +1495,9 @@ class StreamsPrefetcher:
                     break
                 else:
                     logger.debug(f"   ✅ Fetched {len(metas)} items in {page_duration:.2f}s")
+
+                # Update fetch count
+                fetched_items_count += len(metas)
 
                 if self.randomize_items: random.shuffle(metas)
 
@@ -1949,6 +1974,9 @@ Examples:
     parser.add_argument('--movies-per-catalog', type=int, default=50, help='Per-catalog limit for movie-only catalogs. -1 for unlimited. (Default: 50)')
     parser.add_argument('--series-per-catalog', type=int, default=5, help='Per-catalog limit for series-only catalogs. -1 for unlimited. (Default: 5)')
     parser.add_argument('--items-per-mixed-catalog', type=int, default=30, help='Per-catalog limit for mixed-type catalogs. -1 for unlimited. (Default: 30)')
+    parser.add_argument('--max-movie-items-per-catalog-fetch', type=int, default=-1, help='Maximum movie items to FETCH from each catalog (not prefetch). -1 for unlimited. (Default: -1)')
+    parser.add_argument('--max-series-items-per-catalog-fetch', type=int, default=-1, help='Maximum series items to FETCH from each catalog (not prefetch). -1 for unlimited. (Default: -1)')
+    parser.add_argument('--max-mixed-items-per-catalog-fetch', type=int, default=-1, help='Maximum items to FETCH from mixed catalogs (not prefetch). -1 for unlimited. (Default: -1)')
     parser.add_argument('-d', '--delay', type=parse_time_string, default='0s', help='Delay between requests. Format: 500ms, 30s, 5m (minutes), 2h, 1d, 1w, 1M (months), 1y. (default: 0s)')
     parser.add_argument('--proxy', type=str, help='HTTP proxy URL (e.g., http://proxy.example.com:8080)')
     parser.add_argument('--randomize-catalog-processing', action='store_true', help='Randomize the order in which catalogs are processed.')
@@ -1967,6 +1995,9 @@ Examples:
         'Movies per Catalog': str(args.movies_per_catalog) if args.movies_per_catalog != -1 else 'Unlimited',
         'Series per Catalog': str(args.series_per_catalog) if args.series_per_catalog != -1 else 'Unlimited',
         'Items per Mixed Catalog': str(args.items_per_mixed_catalog) if args.items_per_mixed_catalog != -1 else 'Unlimited',
+        'Max Movie Items per Catalog Fetch': str(args.max_movie_items_per_catalog_fetch) if args.max_movie_items_per_catalog_fetch != -1 else 'Unlimited',
+        'Max Series Items per Catalog Fetch': str(args.max_series_items_per_catalog_fetch) if args.max_series_items_per_catalog_fetch != -1 else 'Unlimited',
+        'Max Mixed Items per Catalog Fetch': str(args.max_mixed_items_per_catalog_fetch) if args.max_mixed_items_per_catalog_fetch != -1 else 'Unlimited',
         'Max Execution Time': format_time_string(args.max_execution_time),
         'Cache Validity': format_time_string(args.cache_validity),
         'Delay': format_time_string(args.delay),
@@ -1982,7 +2013,7 @@ Examples:
         print(f"  {param:<28}: {value}")
     print("-" * terminal_width)
 
-    prefetcher = StreamsPrefetcher(args.addon_urls, movies_global_limit=args.movies_global_limit, series_global_limit=args.series_global_limit, movies_per_catalog=args.movies_per_catalog, series_per_catalog=args.series_per_catalog, items_per_mixed_catalog=args.items_per_mixed_catalog, delay=args.delay, proxy_url=args.proxy, randomize_catalogs=args.randomize_catalog_processing, randomize_items=args.randomize_item_prefetching, cache_validity_seconds=args.cache_validity, max_execution_time=args.max_execution_time, enable_logging=args.enable_logging)
+    prefetcher = StreamsPrefetcher(args.addon_urls, movies_global_limit=args.movies_global_limit, series_global_limit=args.series_global_limit, movies_per_catalog=args.movies_per_catalog, series_per_catalog=args.series_per_catalog, items_per_mixed_catalog=args.items_per_mixed_catalog, delay=args.delay, proxy_url=args.proxy, randomize_catalogs=args.randomize_catalog_processing, randomize_items=args.randomize_item_prefetching, cache_validity_seconds=args.cache_validity, max_execution_time=args.max_execution_time, enable_logging=args.enable_logging, max_movie_items_per_catalog_fetch=args.max_movie_items_per_catalog_fetch, max_series_items_per_catalog_fetch=args.max_series_items_per_catalog_fetch, max_mixed_items_per_catalog_fetch=args.max_mixed_items_per_catalog_fetch)
     
     try:
         results = prefetcher.process_all()

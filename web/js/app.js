@@ -783,6 +783,11 @@ function toggleUnlimited(fieldId) {
         input.disabled = false;
         input.style.opacity = '1';
     }
+
+    // Trigger autosave and validation
+    configModified = true;
+    autoSaveConfiguration();
+    validateFetchVsPrefetch();
 }
 
 function toggleUnlimitedTime(fieldId) {
@@ -1008,7 +1013,49 @@ function initializeUnlimitedCheckboxes() {
     toggleUnlimited('movies-per-catalog');
     toggleUnlimited('series-per-catalog');
     toggleUnlimited('items-per-mixed-catalog');
+    toggleUnlimited('max-movie-items-per-catalog-fetch');
+    toggleUnlimited('max-series-items-per-catalog-fetch');
+    toggleUnlimited('max-mixed-items-per-catalog-fetch');
     toggleUnlimitedTime('max-execution-time');
+}
+
+function validateFetchVsPrefetch() {
+    // Validate fetch vs prefetch limits for all catalog types
+    const catalogTypes = [
+        { type: 'movie', prefetch: 'movies-per-catalog', fetch: 'max-movie-items-per-catalog-fetch' },
+        { type: 'series', prefetch: 'series-per-catalog', fetch: 'max-series-items-per-catalog-fetch' },
+        { type: 'mixed', prefetch: 'items-per-mixed-catalog', fetch: 'max-mixed-items-per-catalog-fetch' }
+    ];
+
+    catalogTypes.forEach(({ type, prefetch, fetch }) => {
+        const fetchUnlimited = document.getElementById(`${fetch}-unlimited`)?.checked;
+        const prefetchUnlimited = document.getElementById(`${prefetch}-unlimited`)?.checked;
+
+        // Parse values - treat empty/invalid as -1 (unlimited) to avoid false warnings
+        const fetchInput = document.getElementById(fetch)?.value;
+        const prefetchInput = document.getElementById(prefetch)?.value;
+        const fetchValue = fetchUnlimited ? -1 : (fetchInput === '' || isNaN(parseInt(fetchInput))) ? -1 : parseInt(fetchInput);
+        const prefetchValue = prefetchUnlimited ? -1 : (prefetchInput === '' || isNaN(parseInt(prefetchInput))) ? -1 : parseInt(prefetchInput);
+
+        const warningContainer = document.getElementById(`${type}-fetch-validation-warning`);
+        const warningText = document.getElementById(`${type}-fetch-validation-text`);
+
+        if (!warningContainer || !warningText) return;
+
+        // Hide warning if either is unlimited
+        if (fetchUnlimited || prefetchUnlimited || fetchValue === -1 || prefetchValue === -1) {
+            warningContainer.style.display = 'none';
+            return;
+        }
+
+        // Show warning if fetch < prefetch
+        if (fetchValue < prefetchValue) {
+            warningContainer.style.display = 'block';
+            warningText.textContent = `Your fetch limit (${fetchValue}) is less than your prefetch limit (${prefetchValue}). In catalogs with many already-cached items, you may not reach your prefetch target.`;
+        } else {
+            warningContainer.style.display = 'none';
+        }
+    });
 }
 
 function setupConfigChangeListeners() {
@@ -1018,16 +1065,18 @@ function setupConfigChangeListeners() {
         configSection.addEventListener('input', () => {
             configModified = true;
             autoSaveConfiguration();
+            validateFetchVsPrefetch(); // Validate on input change
         });
 
         configSection.addEventListener('change', () => {
             configModified = true;
             autoSaveConfiguration();
+            validateFetchVsPrefetch(); // Validate on change
         });
     }
 
     // Listen to addon URLs section inputs for auto-save
-    const addonSection = document.getElementById('addon-urls');
+    const addonSection = document.getElementById('addons');
     if (addonSection) {
         addonSection.addEventListener('input', () => {
             configModified = true;
@@ -1257,6 +1306,17 @@ function dismissErrorNotification(notification) {
     }, 300);
 }
 
+// Configuration Autosave Error Handler (checks isPageLoading to prevent errors during initialization)
+function showConfigSaveError(title, message) {
+    addDebugLog(`[CONFIG SAVE] ✗ ${title}: ${message}`);
+    console.error(`Configuration save error - ${title}:`, message);
+
+    // Only show user notification if page has finished loading
+    if (!isPageLoading) {
+        showErrorNotification(title, message);
+    }
+}
+
 // ============================================================================
 // Configuration Management
 // ============================================================================
@@ -1297,6 +1357,11 @@ function populateConfigurationForm(config) {
     setLimitValue('movies-per-catalog', config.movies_per_catalog);
     setLimitValue('series-per-catalog', config.series_per_catalog);
     setLimitValue('items-per-mixed-catalog', config.items_per_mixed_catalog);
+
+    // Populate fetch limits with unlimited checkbox handling
+    setLimitValue('max-movie-items-per-catalog-fetch', config.max_movie_items_per_catalog_fetch);
+    setLimitValue('max-series-items-per-catalog-fetch', config.max_series_items_per_catalog_fetch);
+    setLimitValue('max-mixed-items-per-catalog-fetch', config.max_mixed_items_per_catalog_fetch);
 
     // Populate time-based parameters
     // Delay - use largest divisible unit
@@ -1431,6 +1496,9 @@ function populateConfigurationForm(config) {
     document.getElementById('max-cache-requests-global').value = cacheUncachedConfig.max_cache_requests_global || 50;
     document.getElementById('cached-streams-count-threshold').value = cacheUncachedConfig.cached_streams_count_threshold || 0;
     toggleCacheUncachedStreams(); // Apply enabled/disabled state to fields
+
+    // Validate fetch vs prefetch limits after loading configuration
+    validateFetchVsPrefetch();
 }
 
 function setLimitValue(fieldId, value) {
@@ -1438,9 +1506,10 @@ function setLimitValue(fieldId, value) {
     const checkbox = document.getElementById(`${fieldId}-unlimited`);
 
     if (value === -1) {
-        // Unlimited
+        // Unlimited - preserve the HTML prefilled value if it exists
         checkbox.checked = true;
-        input.value = fieldId.includes('global') ? 200 : (fieldId.includes('mixed') ? 30 : 50);
+        // Don't overwrite the HTML value - keep what was set in the HTML
+        // input.value remains as set in HTML (e.g., 5000, 500, 3000)
     } else {
         // Limited
         checkbox.checked = false;
@@ -2027,6 +2096,9 @@ async function saveConfigurationSilent() {
             movies_per_catalog: getLimitValue('movies-per-catalog'),
             series_per_catalog: getLimitValue('series-per-catalog'),
             items_per_mixed_catalog: getLimitValue('items-per-mixed-catalog'),
+            max_movie_items_per_catalog_fetch: getLimitValue('max-movie-items-per-catalog-fetch'),
+            max_series_items_per_catalog_fetch: getLimitValue('max-series-items-per-catalog-fetch'),
+            max_mixed_items_per_catalog_fetch: getLimitValue('max-mixed-items-per-catalog-fetch'),
             delay: document.getElementById('delay-no-delay').checked ? 0 : parseFloat(document.getElementById('delay-value').value) * parseFloat(document.getElementById('delay-unit').value),
             network_request_timeout: document.getElementById('network-request-timeout-unlimited').checked ? -1 : parseFloat(document.getElementById('network-request-timeout-value').value) * parseFloat(document.getElementById('network-request-timeout-unit').value),
             cache_validity: document.getElementById('cache-validity-unlimited').checked ? -1 : parseFloat(document.getElementById('cache-validity-value').value) * parseFloat(document.getElementById('cache-validity-unit').value),
@@ -2076,10 +2148,10 @@ async function saveConfigurationSilent() {
             localStorage.setItem('addons-configured', 'true');
             localStorage.setItem('configuration-configured', 'true');
         } else {
-            console.error('Failed to auto-save configuration:', data.error);
+            showConfigSaveError('Configuration Save Failed', data.error || 'Unknown error occurred');
         }
     } catch (error) {
-        console.error('Error auto-saving configuration:', error);
+        showConfigSaveError('Configuration Save Error', `Network or server error: ${error.message}`);
     }
 }
 
@@ -2119,6 +2191,9 @@ async function saveConfiguration() {
             movies_per_catalog: getLimitValue('movies-per-catalog'),
             series_per_catalog: getLimitValue('series-per-catalog'),
             items_per_mixed_catalog: getLimitValue('items-per-mixed-catalog'),
+            max_movie_items_per_catalog_fetch: getLimitValue('max-movie-items-per-catalog-fetch'),
+            max_series_items_per_catalog_fetch: getLimitValue('max-series-items-per-catalog-fetch'),
+            max_mixed_items_per_catalog_fetch: getLimitValue('max-mixed-items-per-catalog-fetch'),
             delay: document.getElementById('delay-no-delay').checked ? 0 : parseFloat(document.getElementById('delay-value').value) * parseFloat(document.getElementById('delay-unit').value),
             network_request_timeout: document.getElementById('network-request-timeout-unlimited').checked ? -1 : parseFloat(document.getElementById('network-request-timeout-value').value) * parseFloat(document.getElementById('network-request-timeout-unit').value),
             cache_validity: document.getElementById('cache-validity-unlimited').checked ? -1 : parseFloat(document.getElementById('cache-validity-value').value) * parseFloat(document.getElementById('cache-validity-unit').value),
@@ -2968,12 +3043,10 @@ async function saveCatalogSelectionSilent() {
             // Mark catalog-selection as configured for smart collapse behavior
             localStorage.setItem('catalog-selection-configured', 'true');
         } else {
-            addDebugLog(`[CATALOG SAVE] ✗ Save failed: ${data.error}`);
-            console.error('Failed to auto-save catalog selection:', data.error);
+            showConfigSaveError('Catalog Selection Save Failed', data.error || 'Unknown error occurred');
         }
     } catch (error) {
-        addDebugLog(`[CATALOG SAVE] ✗ Exception occurred: ${error.message}`);
-        console.error('Error auto-saving catalog selection:', error);
+        showConfigSaveError('Catalog Selection Save Error', `Network or server error: ${error.message}`);
     }
 }
 
