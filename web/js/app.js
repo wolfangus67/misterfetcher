@@ -783,6 +783,11 @@ function toggleUnlimited(fieldId) {
         input.disabled = false;
         input.style.opacity = '1';
     }
+
+    // Trigger autosave and validation
+    configModified = true;
+    autoSaveConfiguration();
+    validateFetchVsPrefetch();
 }
 
 function toggleUnlimitedTime(fieldId) {
@@ -1008,6 +1013,9 @@ function initializeUnlimitedCheckboxes() {
     toggleUnlimited('movies-per-catalog');
     toggleUnlimited('series-per-catalog');
     toggleUnlimited('items-per-mixed-catalog');
+    toggleUnlimited('max-movie-items-per-catalog-fetch');
+    toggleUnlimited('max-series-items-per-catalog-fetch');
+    toggleUnlimited('max-mixed-items-per-catalog-fetch');
     toggleUnlimitedTime('max-execution-time');
 }
 
@@ -1068,7 +1076,7 @@ function setupConfigChangeListeners() {
     }
 
     // Listen to addon URLs section inputs for auto-save
-    const addonSection = document.getElementById('addon-urls');
+    const addonSection = document.getElementById('addons');
     if (addonSection) {
         addonSection.addEventListener('input', () => {
             configModified = true;
@@ -1487,9 +1495,10 @@ function setLimitValue(fieldId, value) {
     const checkbox = document.getElementById(`${fieldId}-unlimited`);
 
     if (value === -1) {
-        // Unlimited
+        // Unlimited - preserve the HTML prefilled value if it exists
         checkbox.checked = true;
-        input.value = fieldId.includes('global') ? 200 : (fieldId.includes('mixed') ? 30 : 50);
+        // Don't overwrite the HTML value - keep what was set in the HTML
+        // input.value remains as set in HTML (e.g., 5000, 500, 3000)
     } else {
         // Limited
         checkbox.checked = false;
