@@ -1306,6 +1306,17 @@ function dismissErrorNotification(notification) {
     }, 300);
 }
 
+// Configuration Autosave Error Handler (checks isPageLoading to prevent errors during initialization)
+function showConfigSaveError(title, message) {
+    addDebugLog(`[CONFIG SAVE] ✗ ${title}: ${message}`);
+    console.error(`Configuration save error - ${title}:`, message);
+
+    // Only show user notification if page has finished loading
+    if (!isPageLoading) {
+        showErrorNotification(title, message);
+    }
+}
+
 // ============================================================================
 // Configuration Management
 // ============================================================================
@@ -2137,10 +2148,10 @@ async function saveConfigurationSilent() {
             localStorage.setItem('addons-configured', 'true');
             localStorage.setItem('configuration-configured', 'true');
         } else {
-            console.error('Failed to auto-save configuration:', data.error);
+            showConfigSaveError('Configuration Save Failed', data.error || 'Unknown error occurred');
         }
     } catch (error) {
-        console.error('Error auto-saving configuration:', error);
+        showConfigSaveError('Configuration Save Error', `Network or server error: ${error.message}`);
     }
 }
 
@@ -3032,12 +3043,10 @@ async function saveCatalogSelectionSilent() {
             // Mark catalog-selection as configured for smart collapse behavior
             localStorage.setItem('catalog-selection-configured', 'true');
         } else {
-            addDebugLog(`[CATALOG SAVE] ✗ Save failed: ${data.error}`);
-            console.error('Failed to auto-save catalog selection:', data.error);
+            showConfigSaveError('Catalog Selection Save Failed', data.error || 'Unknown error occurred');
         }
     } catch (error) {
-        addDebugLog(`[CATALOG SAVE] ✗ Exception occurred: ${error.message}`);
-        console.error('Error auto-saving catalog selection:', error);
+        showConfigSaveError('Catalog Selection Save Error', `Network or server error: ${error.message}`);
     }
 }
 
