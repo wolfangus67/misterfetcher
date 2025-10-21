@@ -5,6 +5,29 @@ All notable changes to Streams Prefetcher will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2025-10-21
+
+### Added
+- Add max items fetched per catalog type configuration (movie/series/mixed)
+- New configuration fields to limit API fetching per catalog type
+- Enhanced UI with dedicated section for fetch limit controls
+- Visual indicators (⚡) to distinguish fetch vs prefetch limits
+- Frontend validation for fetch limit inputs
+
+### Changed
+- Clarify configuration field labels for prefetch vs fetch limits
+- Update tooltip descriptions to distinguish between fetch and prefetch operations
+- Improve UI layout for better visual separation of configuration sections
+- Centralize autosave error handling with isPageLoading check to prevent errors on page load
+
+### Fixed
+- Autosave triggers and initialization for fetch limit configurations
+- Correct fetch limit implementation in backend and wrapper
+- Prevent autosave error notifications from appearing during initial page load
+- UI layout issues with fetch limit controls
+
+Closes #11
+
 ## [0.13.4] - 2025-10-20
 
 ### Changed
