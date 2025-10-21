@@ -1011,6 +1011,45 @@ function initializeUnlimitedCheckboxes() {
     toggleUnlimitedTime('max-execution-time');
 }
 
+function validateFetchVsPrefetch() {
+    // Validate fetch vs prefetch limits for all catalog types
+    const catalogTypes = [
+        { type: 'movie', prefetch: 'movies-per-catalog', fetch: 'max-movie-items-per-catalog-fetch' },
+        { type: 'series', prefetch: 'series-per-catalog', fetch: 'max-series-items-per-catalog-fetch' },
+        { type: 'mixed', prefetch: 'items-per-mixed-catalog', fetch: 'max-mixed-items-per-catalog-fetch' }
+    ];
+
+    catalogTypes.forEach(({ type, prefetch, fetch }) => {
+        const fetchUnlimited = document.getElementById(`${fetch}-unlimited`)?.checked;
+        const prefetchUnlimited = document.getElementById(`${prefetch}-unlimited`)?.checked;
+
+        // Parse values - treat empty/invalid as -1 (unlimited) to avoid false warnings
+        const fetchInput = document.getElementById(fetch)?.value;
+        const prefetchInput = document.getElementById(prefetch)?.value;
+        const fetchValue = fetchUnlimited ? -1 : (fetchInput === '' || isNaN(parseInt(fetchInput))) ? -1 : parseInt(fetchInput);
+        const prefetchValue = prefetchUnlimited ? -1 : (prefetchInput === '' || isNaN(parseInt(prefetchInput))) ? -1 : parseInt(prefetchInput);
+
+        const warningContainer = document.getElementById(`${type}-fetch-validation-warning`);
+        const warningText = document.getElementById(`${type}-fetch-validation-text`);
+
+        if (!warningContainer || !warningText) return;
+
+        // Hide warning if either is unlimited
+        if (fetchUnlimited || prefetchUnlimited || fetchValue === -1 || prefetchValue === -1) {
+            warningContainer.style.display = 'none';
+            return;
+        }
+
+        // Show warning if fetch < prefetch
+        if (fetchValue < prefetchValue) {
+            warningContainer.style.display = 'block';
+            warningText.textContent = `Your fetch limit (${fetchValue}) is less than your prefetch limit (${prefetchValue}). In catalogs with many already-cached items, you may not reach your prefetch target.`;
+        } else {
+            warningContainer.style.display = 'none';
+        }
+    });
+}
+
 function setupConfigChangeListeners() {
     // Listen to configuration section inputs for auto-save
     const configSection = document.getElementById('configuration');
@@ -1018,11 +1057,13 @@ function setupConfigChangeListeners() {
         configSection.addEventListener('input', () => {
             configModified = true;
             autoSaveConfiguration();
+            validateFetchVsPrefetch(); // Validate on input change
         });
 
         configSection.addEventListener('change', () => {
             configModified = true;
             autoSaveConfiguration();
+            validateFetchVsPrefetch(); // Validate on change
         });
     }
 
@@ -1436,6 +1477,9 @@ function populateConfigurationForm(config) {
     document.getElementById('max-cache-requests-global').value = cacheUncachedConfig.max_cache_requests_global || 50;
     document.getElementById('cached-streams-count-threshold').value = cacheUncachedConfig.cached_streams_count_threshold || 0;
     toggleCacheUncachedStreams(); // Apply enabled/disabled state to fields
+
+    // Validate fetch vs prefetch limits after loading configuration
+    validateFetchVsPrefetch();
 }
 
 function setLimitValue(fieldId, value) {

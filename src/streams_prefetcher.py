@@ -1442,16 +1442,15 @@ class StreamsPrefetcher:
 
             page = 0
             success_count, failed_count, cached_count, prefetched_in_this_catalog = 0, 0, 0, 0
-            fetch_limit_reached = False
 
             while True:
                 # Check execution time limit before fetching new page (optimization to avoid unnecessary API call)
                 if self._check_time_limit():
                     break
 
-                # Check if fetch limit was reached on previous page - if so, don't fetch more pages
-                if fetch_limit_reached:
-                    logger.debug(f"🛑 Stopping page fetching - fetch limit reached for catalog '{cat_name}'")
+                # Check if fetch limit already reached - if so, don't fetch more pages
+                if fetch_limit != -1 and fetched_items_count >= fetch_limit:
+                    logger.debug(f"🛑 Stopping page fetching - fetch limit reached for catalog '{cat_name}' ({fetched_items_count}/{fetch_limit} items)")
                     break
 
                 if per_catalog_limit != -1 and prefetched_in_this_catalog >= per_catalog_limit: break
@@ -1497,15 +1496,8 @@ class StreamsPrefetcher:
                 else:
                     logger.debug(f"   ✅ Fetched {len(metas)} items in {page_duration:.2f}s")
 
-                # Update fetch count and check if we've reached the fetch limit
+                # Update fetch count
                 fetched_items_count += len(metas)
-                if fetch_limit != -1 and fetched_items_count >= fetch_limit:
-                    fetch_limit_reached = True
-                    logger.info(f"📊 Catalog fetch limit reached: {fetched_items_count} items fetched (limit: {fetch_limit})")
-                    if self.enable_logging:
-                        print(f"   🎯 Fetch limit reached: {fetched_items_count}/{fetch_limit} items fetched")
-                        sys.stdout.flush()
-                    # We still process the current page items, but won't fetch more pages
 
                 if self.randomize_items: random.shuffle(metas)
 

@@ -174,6 +174,16 @@ Default: <strong>Unlimited</strong>"><svg viewBox="0 0 24 24" fill="none" stroke
                                     <input type="checkbox" id="max-movie-items-per-catalog-fetch-unlimited" checked onchange="toggleUnlimited('max-movie-items-per-catalog-fetch')">
                                     Unlimited
                                 </label>
+                                <!-- Movie Fetch Validation Warning -->
+                                <div id="movie-fetch-validation-warning" class="collapsible-warning-box warning-box-collapsible" style="display: none; margin-top: 12px; margin-bottom: 20px;">
+                                    <div class="warning-box-header">
+                                        <span class="warning-box-icon-small">⚠️</span>
+                                        <strong>Movie Fetch Limit Warning</strong>
+                                    </div>
+                                    <div class="warning-box-collapsible-content">
+                                        <p id="movie-fetch-validation-text"></p>
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="form-group">
@@ -213,6 +223,16 @@ Default: <strong>Unlimited</strong>"><svg viewBox="0 0 24 24" fill="none" stroke
                                     <input type="checkbox" id="max-series-items-per-catalog-fetch-unlimited" checked onchange="toggleUnlimited('max-series-items-per-catalog-fetch')">
                                     Unlimited
                                 </label>
+                                <!-- Series Fetch Validation Warning -->
+                                <div id="series-fetch-validation-warning" class="collapsible-warning-box warning-box-collapsible" style="display: none; margin-top: 12px; margin-bottom: 20px;">
+                                    <div class="warning-box-header">
+                                        <span class="warning-box-icon-small">⚠️</span>
+                                        <strong>Series Fetch Limit Warning</strong>
+                                    </div>
+                                    <div class="warning-box-collapsible-content">
+                                        <p id="series-fetch-validation-text"></p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -236,7 +256,7 @@ Default: <strong>30</strong>"><svg viewBox="0 0 24 24" fill="none" stroke="curre
                         </div>
 
                         <!-- Mixed Fetch Limit - Right After Mixed Prefetch Limit -->
-                        <div class="form-group">
+                        <div class="form-group" style="margin-bottom: 40px;">
                             <label for="max-mixed-items-per-catalog-fetch">
                                 Max Items to Fetch per Mixed Catalog
                                 <span class="info-icon" data-tooltip="Maximum number of items to <strong>fetch</strong> from mixed catalogs (containing both movies and series) via API requests, regardless of cache status. This controls how many catalog items are downloaded from the addon, not how many streams are prefetched.
@@ -256,6 +276,16 @@ Default: <strong>Unlimited</strong>"><svg viewBox="0 0 24 24" fill="none" stroke
                                     <input type="checkbox" id="max-mixed-items-per-catalog-fetch-unlimited" checked onchange="toggleUnlimited('max-mixed-items-per-catalog-fetch')">
                                     Unlimited
                                 </label>
+                            </div>
+                            <!-- Mixed Fetch Validation Warning -->
+                            <div id="mixed-fetch-validation-warning" class="collapsible-warning-box warning-box-collapsible" style="display: none; margin-top: 12px; margin-bottom: 20px;">
+                                <div class="warning-box-header">
+                                    <span class="warning-box-icon-small">⚠️</span>
+                                    <strong>Mixed Catalog Fetch Limit Warning</strong>
+                                </div>
+                                <div class="warning-box-collapsible-content">
+                                    <p id="mixed-fetch-validation-text"></p>
+                                </div>
                             </div>
                         </div>
 
@@ -679,8 +709,6 @@ Default: <strong>Disabled</strong>"><svg viewBox="0 0 24 24" fill="none" stroke=
                         </ul>
                     </div>
                 </div>
-            </div>
-            </div>
         </section>
 
         <!-- Add/Edit Schedule Modal -->
