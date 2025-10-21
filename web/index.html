@@ -15,11 +15,11 @@
         <!-- Addons Section - Collapsible -->
         <section id="addons" class="card">
             <div class="section-header-collapsible" onclick="toggleSection('addons')">
-                <span class="collapse-icon" id="addons-icon">▼</span>
+                <span class="collapse-icon collapsed" id="addons-icon">▶</span>
                 <h2>🧩 Addons</h2>
             </div>
 
-            <div class="collapsible-content" id="addons-content">
+            <div class="collapsible-content collapsed" id="addons-content">
                 <div class="form-group">
                     <div class="addon-url-sections">
                                 <!-- Both Section -->
@@ -91,15 +91,18 @@
         <!-- Configuration Section - Collapsible -->
         <section id="configuration" class="card">
             <div class="section-header-collapsible" onclick="toggleSection('configuration')">
-                <span class="collapse-icon" id="configuration-icon">▼</span>
+                <span class="collapse-icon collapsed" id="configuration-icon">▶</span>
                 <h2>⚙️ Configuration</h2>
             </div>
 
-            <div class="collapsible-content" id="configuration-content">
+            <div class="collapsible-content collapsed" id="configuration-content">
                 <!-- Limits Subsection -->
                 <div class="config-subsection">
-                    <h3 class="subsection-title">🎯 Limits</h3>
-                    <div class="subsection-content">
+                    <h3 class="subsection-title subsection-header-collapsible" onclick="toggleSubsection('limits')">
+                        <span class="collapse-icon collapsed" id="limits-icon">▶</span>
+                        🎯 Limits
+                    </h3>
+                    <div class="subsection-content collapsible-content collapsed" id="limits-content">
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="movies-global-limit">
@@ -318,8 +321,11 @@ Default: <strong>90 minutes</strong>"><svg viewBox="0 0 24 24" fill="none" strok
 
                 <!-- Network Requests Subsection -->
                 <div class="config-subsection">
-                    <h3 class="subsection-title">🌐 Network Requests</h3>
-                    <div class="subsection-content">
+                    <h3 class="subsection-title subsection-header-collapsible" onclick="toggleSubsection('network-requests')">
+                        <span class="collapse-icon collapsed" id="network-requests-icon">▶</span>
+                        🌐 Network Requests
+                    </h3>
+                    <div class="subsection-content collapsible-content collapsed" id="network-requests-content">
                         <div class="form-group">
                             <label for="delay">
                                 Delay Between Requests
@@ -383,8 +389,9 @@ Default: <strong>30 seconds</strong>"><svg viewBox="0 0 24 24" fill="none" strok
 
                 <!-- Stream Source Cache Requests Subsection -->
                 <div class="config-subsection">
-                    <h3 class="subsection-title" style="display: flex; align-items: center; justify-content: space-between;">
-                        <span style="display: flex; align-items: center;">
+                    <h3 class="subsection-title subsection-header-collapsible" style="display: flex; align-items: center; justify-content: space-between;" onclick="toggleSubsection('stream-cache-requests')">
+                        <span style="display: flex; align-items: center; gap: 8px;">
+                            <span class="collapse-icon collapsed" id="stream-cache-requests-icon">▶</span>
                             🔄 Stream Source Cache Requests
                             <span class="info-icon" data-tooltip="Performs caching requests for uncached streams to the stream sources that are preconfigured in your Stream addons. These uncached streams will then automatically get cached on the stream source's systems (unless you've exceeded their usage limits).
 
@@ -398,7 +405,7 @@ Default: <strong>Disabled</strong>"><svg viewBox="0 0 24 24" fill="none" stroke=
                             <span class="toggle-slider"></span>
                         </label>
                     </h3>
-                    <div class="subsection-content" id="cache-uncached-streams-content">
+                    <div class="subsection-content collapsible-content collapsed" id="stream-cache-requests-content">
                         <div class="form-group">
                             <label for="cached-stream-regex">
                                 Cached Streams Detection Pattern (RegEx)
@@ -497,8 +504,11 @@ Default: <strong>0</strong>"><svg viewBox="0 0 24 24" fill="none" stroke="curren
 
                 <!-- Randomization Subsection -->
                 <div class="config-subsection">
-                    <h3 class="subsection-title">🔮 Randomization</h3>
-                    <div class="subsection-content">
+                    <h3 class="subsection-title subsection-header-collapsible" onclick="toggleSubsection('randomization')">
+                        <span class="collapse-icon collapsed" id="randomization-icon">▶</span>
+                        🔮 Randomization
+                    </h3>
+                    <div class="subsection-content collapsible-content collapsed" id="randomization-content">
                         <div class="form-row">
                             <div class="form-group">
                                 <label>
@@ -537,8 +547,11 @@ Default: <strong>Disabled</strong>"><svg viewBox="0 0 24 24" fill="none" stroke=
 
                 <!-- Caching & Logging Subsection -->
                 <div class="config-subsection">
-                    <h3 class="subsection-title">💾 Caching & Logging</h3>
-                    <div class="subsection-content">
+                    <h3 class="subsection-title subsection-header-collapsible" onclick="toggleSubsection('caching-logging')">
+                        <span class="collapse-icon collapsed" id="caching-logging-icon">▶</span>
+                        💾 Caching & Logging
+                    </h3>
+                    <div class="subsection-content collapsible-content collapsed" id="caching-logging-content">
                         <div class="form-group">
                             <label for="cache-validity">
                                 Skip Prefetching if already done within
@@ -588,11 +601,11 @@ Default: <strong>Disabled</strong>"><svg viewBox="0 0 24 24" fill="none" stroke=
         <!-- Catalog Selection Section -->
         <section id="catalog-selection" class="card">
             <div class="section-header-collapsible" onclick="toggleSection('catalog-selection')">
-                <span class="collapse-icon" id="catalog-selection-icon">▼</span>
+                <span class="collapse-icon collapsed" id="catalog-selection-icon">▶</span>
                 <h2>🎬 Catalog Selection</h2>
             </div>
 
-            <div class="collapsible-content" id="catalog-selection-content">
+            <div class="collapsible-content collapsed" id="catalog-selection-content">
             <div class="catalog-button-grid" style="margin-bottom: 20px;">
                 <button type="button" class="btn btn-secondary" onclick="loadCatalogs()" id="load-catalogs-btn" style="min-width: 170px; min-height: 49px; height: 49px; box-sizing: border-box; white-space: nowrap;">
                     Load Catalogs
@@ -631,7 +644,7 @@ Default: <strong>Disabled</strong>"><svg viewBox="0 0 24 24" fill="none" stroke=
         <!-- Scheduling Section -->
         <section id="schedule" class="card">
             <div class="section-header-collapsible">
-                <span class="collapse-icon" id="schedule-icon" onclick="toggleSection('schedule')">▼</span>
+                <span class="collapse-icon collapsed" id="schedule-icon" onclick="toggleSection('schedule')">▶</span>
                 <h2 onclick="toggleSection('schedule')" style="cursor: pointer; flex: 1;">📅 Scheduling</h2>
                 <label class="toggle-switch" onclick="event.stopPropagation()">
                     <input type="checkbox" id="scheduling-enabled" onchange="toggleScheduling()">
@@ -639,7 +652,7 @@ Default: <strong>Disabled</strong>"><svg viewBox="0 0 24 24" fill="none" stroke=
                 </label>
             </div>
 
-            <div class="collapsible-content" id="schedule-content">
+            <div class="collapsible-content collapsed" id="schedule-content">
             <p class="help-text" style="margin-top: 0;">Configure when prefetch jobs should run automatically</p>
 
             <!-- Timezone Mismatch Banner (shown only when browser ≠ server timezone) -->

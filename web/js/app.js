@@ -427,6 +427,17 @@ function toggleSection(sectionId) {
     }
 }
 
+function toggleSubsection(subsectionId) {
+    const content = document.getElementById(`${subsectionId}-content`);
+    const icon = document.getElementById(`${subsectionId}-icon`);
+
+    if (content && icon) {
+        content.classList.toggle('collapsed');
+        icon.classList.toggle('collapsed');
+        // Subsections never persist their state - user must manually expand each time
+    }
+}
+
 function toggleWarningBox(warningId) {
     const content = document.getElementById(warningId);
     const icon = document.getElementById(`${warningId}-icon`);
@@ -463,7 +474,7 @@ function toggleScheduling() {
 
 function toggleCacheUncachedStreams() {
     const checkbox = document.getElementById('cache-uncached-streams-enabled');
-    const content = document.getElementById('cache-uncached-streams-content');
+    const content = document.getElementById('stream-cache-requests-content');
 
     // Get all input fields within the content
     const inputs = content.querySelectorAll('input');
@@ -969,11 +980,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function restoreCollapsedStates() {
-    // Restore collapsed state for all collapsible sections
+    // Restore collapsed state for all top-level collapsible sections
+    // Default behavior: expand all sections (unless user explicitly collapsed them)
     const sections = ['addons', 'configuration', 'catalog-selection', 'schedule'];
-
-    // Check if any prefetch job has ever been run
-    const hasRunJob = localStorage.getItem('has-run-prefetch-job') === 'true';
 
     sections.forEach(sectionId => {
         const content = document.getElementById(`${sectionId}-content`);
@@ -981,28 +990,17 @@ function restoreCollapsedStates() {
 
         if (!content || !icon) return;
 
-        // Check if user has explicitly set a collapsed state
+        // Check if user has explicitly collapsed this section
         const userCollapsedState = localStorage.getItem(`${sectionId}-collapsed`);
 
-        // Check if section has been configured before
-        const hasBeenConfigured = localStorage.getItem(`${sectionId}-configured`) === 'true';
-
-        // Smart expand/collapse logic:
-        // - If user has explicitly collapsed/expanded, respect that
-        // - Otherwise, if unconfigured AND no job has run, expand
-        // - If configured, collapse
-        if (userCollapsedState !== null) {
-            // User has explicitly set state, respect it
-            if (userCollapsedState === 'true') {
-                content.classList.add('collapsed');
-                icon.classList.add('collapsed');
-            }
-        } else if (hasBeenConfigured || hasRunJob) {
-            // Section has been configured or a job has run, collapse it
-            content.classList.add('collapsed');
-            icon.classList.add('collapsed');
+        if (userCollapsedState === 'true') {
+            // User wants it collapsed - keep collapsed classes (already set in HTML)
+            // Do nothing, leave collapsed
+        } else {
+            // Default: expand (remove collapsed classes)
+            content.classList.remove('collapsed');
+            icon.classList.remove('collapsed');
         }
-        // Otherwise leave expanded (default state)
     });
 }
 
