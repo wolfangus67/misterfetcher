@@ -123,7 +123,10 @@ class StreamsPrefetcherWrapper:
             'max_successful_cache_requests_per_item': cache_uncached_streams.get('max_successful_cache_requests_per_item', 1),
             'max_cache_request_attempts_per_item': cache_uncached_streams.get('max_cache_request_attempts_per_item', 3),
             'max_cache_requests_global': cache_uncached_streams.get('max_cache_requests_global', 50),
-            'cached_streams_count_threshold': cache_uncached_streams.get('cached_streams_count_threshold', 0)
+            'cached_streams_count_threshold': cache_uncached_streams.get('cached_streams_count_threshold', 0),
+            'max_movie_items_per_catalog_fetch': config.get('max_movie_items_per_catalog_fetch', -1),
+            'max_series_items_per_catalog_fetch': config.get('max_series_items_per_catalog_fetch', -1),
+            'max_mixed_items_per_catalog_fetch': config.get('max_mixed_items_per_catalog_fetch', -1)
         }
 
         logger.debug("🔧 [WRAPPER] Configuration parsing complete")

@@ -44,7 +44,10 @@ class ConfigManager:
             'max_cache_request_attempts_per_item': 3,
             'max_cache_requests_global': 50,
             'cached_streams_count_threshold': 0
-        }
+        },
+        'max_movie_items_per_catalog_fetch': -1,
+        'max_series_items_per_catalog_fetch': -1,
+        'max_mixed_items_per_catalog_fetch': -1
     }
 
     def __init__(self, config_path: str = 'data/config/config.json'):
@@ -240,6 +243,9 @@ class ConfigManager:
         args.extend(['--movies-per-catalog', str(self.config['movies_per_catalog'])])
         args.extend(['--series-per-catalog', str(self.config['series_per_catalog'])])
         args.extend(['--items-per-mixed-catalog', str(self.config['items_per_mixed_catalog'])])
+        args.extend(['--max-movie-items-per-catalog-fetch', str(self.config['max_movie_items_per_catalog_fetch'])])
+        args.extend(['--max-series-items-per-catalog-fetch', str(self.config['max_series_items_per_catalog_fetch'])])
+        args.extend(['--max-mixed-items-per-catalog-fetch', str(self.config['max_mixed_items_per_catalog_fetch'])])
 
         # Time-based parameters (convert seconds to string format)
         if self.config['delay'] > 0:

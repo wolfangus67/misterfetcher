@@ -154,6 +154,28 @@ Default: <strong>50</strong>"><svg viewBox="0 0 24 24" fill="none" stroke="curre
                                 </label>
                             </div>
 
+                            <!-- Movie Fetch Limit - Right After Movie Prefetch Limit -->
+                            <div class="form-group">
+                                <label for="max-movie-items-per-catalog-fetch">
+                                    Max Movies to Fetch per Catalog
+                                    <span class="info-icon" data-tooltip="Maximum number of movie items to <strong>fetch</strong> from each movie catalog via API requests, regardless of cache status. This controls how many catalog items are downloaded from the addon, not how many streams are prefetched.
+
+Use this to prevent fetching thousands of items from large catalogs when you only want to process a manageable subset.
+
+<strong>Important:</strong> This controls API fetching (catalog items pulled), not stream prefetching (caching).
+
+Default: <strong>Unlimited</strong>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <circle cx="12" cy="12" r="10"></circle>
+                                                <path d="M12 16v-4M12 8h.01"></path>
+                                            </svg></span>
+                                </label>
+                                <input type="number" id="max-movie-items-per-catalog-fetch" value="" min="0" placeholder="Unlimited">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="max-movie-items-per-catalog-fetch-unlimited" checked onchange="toggleUnlimited('max-movie-items-per-catalog-fetch')">
+                                    Unlimited
+                                </label>
+                            </div>
+
                             <div class="form-group">
                                 <label for="series-per-catalog">
                                     Series per Catalog
@@ -170,6 +192,28 @@ Default: <strong>5</strong>"><svg viewBox="0 0 24 24" fill="none" stroke="curren
                                     Unlimited
                                 </label>
                             </div>
+
+                            <!-- Series Fetch Limit - Right After Series Prefetch Limit -->
+                            <div class="form-group">
+                                <label for="max-series-items-per-catalog-fetch">
+                                    Max Series to Fetch per Catalog
+                                    <span class="info-icon" data-tooltip="Maximum number of series items to <strong>fetch</strong> from each series catalog via API requests, regardless of cache status. This controls how many catalog items are downloaded from the addon, not how many streams are prefetched.
+
+Use this to prevent fetching thousands of items from large catalogs when you only want to process a manageable subset.
+
+<strong>Important:</strong> This controls API fetching (catalog items pulled), not stream prefetching (caching).
+
+Default: <strong>Unlimited</strong>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <circle cx="12" cy="12" r="10"></circle>
+                                                <path d="M12 16v-4M12 8h.01"></path>
+                                            </svg></span>
+                                </label>
+                                <input type="number" id="max-series-items-per-catalog-fetch" value="" min="0" placeholder="Unlimited">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="max-series-items-per-catalog-fetch-unlimited" checked onchange="toggleUnlimited('max-series-items-per-catalog-fetch')">
+                                    Unlimited
+                                </label>
+                            </div>
                         </div>
 
                         <div class="form-group">
@@ -183,10 +227,36 @@ Default: <strong>30</strong>"><svg viewBox="0 0 24 24" fill="none" stroke="curre
                                             </svg></span>
                             </label>
                             <input type="number" id="items-per-mixed-catalog" value="30" min="0" style="max-width: 200px;">
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="items-per-mixed-catalog-unlimited" onchange="toggleUnlimited('items-per-mixed-catalog')">
-                                Unlimited
+                            <div style="margin-top: 8px;">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="items-per-mixed-catalog-unlimited" onchange="toggleUnlimited('items-per-mixed-catalog')">
+                                    Unlimited
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Mixed Fetch Limit - Right After Mixed Prefetch Limit -->
+                        <div class="form-group">
+                            <label for="max-mixed-items-per-catalog-fetch">
+                                Max Items to Fetch per Mixed Catalog
+                                <span class="info-icon" data-tooltip="Maximum number of items to <strong>fetch</strong> from mixed catalogs (containing both movies and series) via API requests, regardless of cache status. This controls how many catalog items are downloaded from the addon, not how many streams are prefetched.
+
+Use this to prevent fetching thousands of items from large catalogs when you only want to process a manageable subset.
+
+<strong>Important:</strong> This controls API fetching (catalog items pulled), not stream prefetching (caching).
+
+Default: <strong>Unlimited</strong>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <circle cx="12" cy="12" r="10"></circle>
+                                                <path d="M12 16v-4M12 8h.01"></path>
+                                            </svg></span>
                             </label>
+                            <input type="number" id="max-mixed-items-per-catalog-fetch" value="" min="0" style="max-width: 200px;" placeholder="Unlimited">
+                            <div style="margin-top: 8px;">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="max-mixed-items-per-catalog-fetch-unlimited" checked onchange="toggleUnlimited('max-mixed-items-per-catalog-fetch')">
+                                    Unlimited
+                                </label>
+                            </div>
                         </div>
 
                         <div class="form-group">

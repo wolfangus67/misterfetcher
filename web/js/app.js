@@ -1298,6 +1298,11 @@ function populateConfigurationForm(config) {
     setLimitValue('series-per-catalog', config.series_per_catalog);
     setLimitValue('items-per-mixed-catalog', config.items_per_mixed_catalog);
 
+    // Populate fetch limits with unlimited checkbox handling
+    setLimitValue('max-movie-items-per-catalog-fetch', config.max_movie_items_per_catalog_fetch);
+    setLimitValue('max-series-items-per-catalog-fetch', config.max_series_items_per_catalog_fetch);
+    setLimitValue('max-mixed-items-per-catalog-fetch', config.max_mixed_items_per_catalog_fetch);
+
     // Populate time-based parameters
     // Delay - use largest divisible unit
     const delayValue = config.delay !== undefined ? config.delay : 2;
@@ -2027,6 +2032,9 @@ async function saveConfigurationSilent() {
             movies_per_catalog: getLimitValue('movies-per-catalog'),
             series_per_catalog: getLimitValue('series-per-catalog'),
             items_per_mixed_catalog: getLimitValue('items-per-mixed-catalog'),
+            max_movie_items_per_catalog_fetch: getLimitValue('max-movie-items-per-catalog-fetch'),
+            max_series_items_per_catalog_fetch: getLimitValue('max-series-items-per-catalog-fetch'),
+            max_mixed_items_per_catalog_fetch: getLimitValue('max-mixed-items-per-catalog-fetch'),
             delay: document.getElementById('delay-no-delay').checked ? 0 : parseFloat(document.getElementById('delay-value').value) * parseFloat(document.getElementById('delay-unit').value),
             network_request_timeout: document.getElementById('network-request-timeout-unlimited').checked ? -1 : parseFloat(document.getElementById('network-request-timeout-value').value) * parseFloat(document.getElementById('network-request-timeout-unit').value),
             cache_validity: document.getElementById('cache-validity-unlimited').checked ? -1 : parseFloat(document.getElementById('cache-validity-value').value) * parseFloat(document.getElementById('cache-validity-unit').value),
@@ -2119,6 +2127,9 @@ async function saveConfiguration() {
             movies_per_catalog: getLimitValue('movies-per-catalog'),
             series_per_catalog: getLimitValue('series-per-catalog'),
             items_per_mixed_catalog: getLimitValue('items-per-mixed-catalog'),
+            max_movie_items_per_catalog_fetch: getLimitValue('max-movie-items-per-catalog-fetch'),
+            max_series_items_per_catalog_fetch: getLimitValue('max-series-items-per-catalog-fetch'),
+            max_mixed_items_per_catalog_fetch: getLimitValue('max-mixed-items-per-catalog-fetch'),
             delay: document.getElementById('delay-no-delay').checked ? 0 : parseFloat(document.getElementById('delay-value').value) * parseFloat(document.getElementById('delay-unit').value),
             network_request_timeout: document.getElementById('network-request-timeout-unlimited').checked ? -1 : parseFloat(document.getElementById('network-request-timeout-value').value) * parseFloat(document.getElementById('network-request-timeout-unit').value),
             cache_validity: document.getElementById('cache-validity-unlimited').checked ? -1 : parseFloat(document.getElementById('cache-validity-value').value) * parseFloat(document.getElementById('cache-validity-unit').value),
