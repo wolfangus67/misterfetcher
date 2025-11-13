@@ -576,7 +576,7 @@ def format_time_string(seconds: float) -> str:
         return " ".join(parts)
 
 class StreamsPrefetcher:
-    def __init__(self, addon_urls: List[Tuple[str, str]] = None, addons: List[Addon] = None, movies_global_limit: int = -1, series_global_limit: int = -1, movies_per_catalog: int = 50, series_per_catalog: int = 3, items_per_mixed_catalog: int = 20, delay: float = 2, network_request_timeout: int = 30, proxy_url: Optional[str] = None, randomize_catalogs: bool = False, randomize_items: bool = False, cache_validity_seconds: int = 259200, max_execution_time: int = -1, enable_logging: bool = False, cache_uncached_streams_enabled: bool = False, cached_stream_regex: str = '⚡', skip_streams_regex: str = '', max_successful_cache_requests_per_item: int = 1, max_cache_request_attempts_per_item: int = 3, max_cache_requests_global: int = 50, cached_streams_count_threshold: int = 0, max_movie_items_per_catalog_fetch: int = -1, max_series_items_per_catalog_fetch: int = -1, max_mixed_items_per_catalog_fetch: int = -1, addon_name_cache: Optional[Dict[str, str]] = None, scheduler=None):
+    def __init__(self, addon_urls: List[Tuple[str, str]] = None, addons: List[Addon] = None, movies_global_limit: int = -1, episodes_global_limit: int = -1, movies_per_catalog: int = 50, episodes_per_catalog: int = 50, episodes_per_mixed_catalog: int = 20, delay: float = 2, network_request_timeout: int = 30, proxy_url: Optional[str] = None, randomize_catalogs: bool = False, randomize_items: bool = False, cache_validity_seconds: int = 259200, max_execution_time: int = -1, enable_logging: bool = False, cache_uncached_streams_enabled: bool = False, cached_stream_regex: str = '⚡', skip_streams_regex: str = '', max_successful_cache_requests_per_item: int = 1, max_cache_request_attempts_per_item: int = 3, max_cache_requests_global: int = 50, cached_streams_count_threshold: int = 0, max_movie_items_per_catalog_fetch: int = -1, max_series_items_per_catalog_fetch: int = -1, max_mixed_items_per_catalog_fetch: int = -1, addon_name_cache: Optional[Dict[str, str]] = None, scheduler=None):
         # Handle old format for backward compatibility
         if addons is not None:
             # New format: use Addon objects directly
@@ -591,10 +591,10 @@ class StreamsPrefetcher:
         self.scheduler = scheduler
         self.addon_name_cache = addon_name_cache or {}
         self.movies_global_limit = movies_global_limit
-        self.series_global_limit = series_global_limit
+        self.episodes_global_limit = episodes_global_limit
         self.movies_per_catalog = movies_per_catalog
-        self.series_per_catalog = series_per_catalog
-        self.items_per_mixed_catalog = items_per_mixed_catalog
+        self.episodes_per_catalog = episodes_per_catalog
+        self.episodes_per_mixed_catalog = episodes_per_mixed_catalog
         self.max_movie_items_per_catalog_fetch = max_movie_items_per_catalog_fetch
         self.max_series_items_per_catalog_fetch = max_series_items_per_catalog_fetch
         self.max_mixed_items_per_catalog_fetch = max_mixed_items_per_catalog_fetch
@@ -620,7 +620,8 @@ class StreamsPrefetcher:
         self.cache_requests_successful_count = 0  # Track successful cache requests
 
         self.prefetched_movies_count = 0
-        self.prefetched_series_count = 0
+        self.series_count = 0  # Supplementary stat: series that contributed ≥1 episode
+        self.processed_series_ids = set()  # Track which series have contributed episodes
         self.prefetched_episodes_count = 0
         self.prefetched_cached_count = 0
 
