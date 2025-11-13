@@ -275,8 +275,8 @@ class JobScheduler:
                 'movies_prefetched': 0,
                 'movies_limit': config.get('movies_global_limit', -1),
                 'series_prefetched': 0,
-                'series_limit': config.get('series_global_limit', -1),
                 'episodes_prefetched': 0,
+                'episodes_limit': config.get('episodes_global_limit', -1),
                 'cached_count': 0,
                 'mode': 'starting',
                 'catalog_name': '',
@@ -321,7 +321,7 @@ class JobScheduler:
         # Log global limits and settings
         logger.debug("⚙️ Global Settings:")
         logger.debug(f"   • Movies global limit: {config.get('movies_global_limit', -1)}")
-        logger.debug(f"   • Series global limit: {config.get('series_global_limit', -1)}")
+        logger.debug(f"   • Episodes global limit: {config.get('episodes_global_limit', -1)}")
         logger.debug(f"   • Delay between requests: {config.get('delay', 0)}s")
         logger.debug(f"   • Network timeout: {config.get('network_request_timeout', 30)}s")
         logger.debug(f"   • Max execution time: {config.get('max_execution_time', -1)}s")
@@ -459,9 +459,10 @@ class JobScheduler:
                     'addon_urls_count': len(config.get('addon_urls', [])),
                     'catalogs_selected': len(enabled_catalogs),
                     'movies_global_limit': config.get('movies_global_limit', -1),
-                    'series_global_limit': config.get('series_global_limit', -1),
+                    'episodes_global_limit': config.get('episodes_global_limit', -1),
                     'movies_per_catalog': config.get('movies_per_catalog', -1),
-                    'series_per_catalog': config.get('series_per_catalog', -1),
+                    'episodes_per_catalog': config.get('episodes_per_catalog', -1),
+                    'episodes_per_mixed_catalog': config.get('episodes_per_mixed_catalog', -1),
                     'delay': config.get('delay', 0),
                     'cache_validity': config.get('cache_validity', 259200)
                 }

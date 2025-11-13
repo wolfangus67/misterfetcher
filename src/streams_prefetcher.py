@@ -108,8 +108,8 @@ class ProgressTracker:
         """Generates a formatted table of current prefetching limits."""
         g_movies_curr = kwargs.get('prefetched_movies_count', 0)
         g_movies_limit = kwargs.get('movies_global_limit', -1)
-        g_series_curr = kwargs.get('prefetched_series_count', 0)
-        g_series_limit = kwargs.get('series_global_limit', -1)
+        g_episodes_curr = kwargs.get('prefetched_episodes_count', 0)
+        g_episodes_limit = kwargs.get('episodes_global_limit', -1)
         c_items_curr = kwargs.get('prefetched_in_this_catalog', 0)
         c_items_limit = kwargs.get('per_catalog_limit', -1)
         cat_mode = kwargs.get('catalog_mode', 'Item')
@@ -121,7 +121,7 @@ class ProgressTracker:
         limit_name = f"Catalog ({cat_mode.capitalize()})"
         rows = [
             ("Global Movies", format_limit(g_movies_curr, g_movies_limit)),
-            ("Global Series", format_limit(g_series_curr, g_series_limit)),
+            ("Global Episodes", format_limit(g_episodes_curr, g_episodes_limit)),
             (limit_name, format_limit(c_items_curr, c_items_limit)),
         ]
 
@@ -150,21 +150,21 @@ class ProgressTracker:
             global_limit = kwargs.get('movies_global_limit', -1)
             global_current = kwargs.get('prefetched_movies_count_at_start', 0)
         elif cat_mode == 'series':
-            global_limit = kwargs.get('series_global_limit', -1)
-            global_current = kwargs.get('prefetched_series_count_at_start', 0)
+            global_limit = kwargs.get('episodes_global_limit', -1)
+            global_current = kwargs.get('prefetched_episodes_count_at_start', 0)
         else:  # mixed
             # For mixed catalogs, use the more restrictive of the two global limits
             movies_remaining = kwargs.get('movies_global_limit', -1) - kwargs.get('prefetched_movies_count_at_start', 0) if kwargs.get('movies_global_limit', -1) != -1 else -1
-            series_remaining = kwargs.get('series_global_limit', -1) - kwargs.get('prefetched_series_count_at_start', 0) if kwargs.get('series_global_limit', -1) != -1 else -1
-            
-            if movies_remaining == -1 and series_remaining == -1:
+            episodes_remaining = kwargs.get('episodes_global_limit', -1) - kwargs.get('prefetched_episodes_count_at_start', 0) if kwargs.get('episodes_global_limit', -1) != -1 else -1
+
+            if movies_remaining == -1 and episodes_remaining == -1:
                 global_remaining = -1
             elif movies_remaining == -1:
-                global_remaining = series_remaining
-            elif series_remaining == -1:
+                global_remaining = episodes_remaining
+            elif episodes_remaining == -1:
                 global_remaining = movies_remaining
             else:
-                global_remaining = max(movies_remaining, series_remaining)
+                global_remaining = max(movies_remaining, episodes_remaining)
             
             if per_catalog_limit == -1:
                 return global_remaining
@@ -196,21 +196,21 @@ class ProgressTracker:
             global_limit = kwargs.get('movies_global_limit', -1)
             global_current = kwargs.get('prefetched_movies_count', 0)
         elif cat_mode == 'series':
-            global_limit = kwargs.get('series_global_limit', -1)
-            global_current = kwargs.get('prefetched_series_count', 0)
+            global_limit = kwargs.get('episodes_global_limit', -1)
+            global_current = kwargs.get('prefetched_episodes_count', 0)
         else:  # mixed
             # For mixed catalogs, use the more restrictive of the two global limits
             movies_remaining = kwargs.get('movies_global_limit', -1) - kwargs.get('prefetched_movies_count', 0) if kwargs.get('movies_global_limit', -1) != -1 else -1
-            series_remaining = kwargs.get('series_global_limit', -1) - kwargs.get('prefetched_series_count', 0) if kwargs.get('series_global_limit', -1) != -1 else -1
-            
-            if movies_remaining == -1 and series_remaining == -1:
+            episodes_remaining = kwargs.get('episodes_global_limit', -1) - kwargs.get('prefetched_episodes_count', 0) if kwargs.get('episodes_global_limit', -1) != -1 else -1
+
+            if movies_remaining == -1 and episodes_remaining == -1:
                 global_remaining = -1
             elif movies_remaining == -1:
-                global_remaining = series_remaining
-            elif series_remaining == -1:
+                global_remaining = episodes_remaining
+            elif episodes_remaining == -1:
                 global_remaining = movies_remaining
             else:
-                global_remaining = max(movies_remaining, series_remaining)
+                global_remaining = max(movies_remaining, episodes_remaining)
             
             catalog_remaining = per_catalog_limit - prefetched_in_this_catalog if per_catalog_limit != -1 else -1
             
@@ -313,9 +313,9 @@ class ProgressTracker:
         """Generate live timing statistics for the dashboard"""
         start_time = kwargs.get('start_time')
         movies_prefetched = kwargs.get('prefetched_movies_count', 0)
-        series_prefetched = kwargs.get('prefetched_series_count', 0)
+        episodes_prefetched = kwargs.get('prefetched_episodes_count', 0)
         movies_limit = kwargs.get('movies_global_limit', -1)
-        series_limit = kwargs.get('series_global_limit', -1)
+        episodes_limit = kwargs.get('episodes_global_limit', -1)
         max_execution_time = kwargs.get('max_execution_time', -1)
         
         lines = []
@@ -354,9 +354,9 @@ class ProgressTracker:
 
         # Check if we have item limits
         item_based_eta = None
-        if movies_limit != -1 and series_limit != -1 and elapsed > 10:
-            total_items = movies_prefetched + series_prefetched
-            total_target = movies_limit + series_limit
+        if movies_limit != -1 and episodes_limit != -1 and elapsed > 10:
+            total_items = movies_prefetched + episodes_prefetched
+            total_target = movies_limit + episodes_limit
 
             if total_items > 0 and total_target > 0:
                 rate = total_items / elapsed
@@ -364,15 +364,15 @@ class ProgressTracker:
 
                 if remaining_items > 0 and rate > 0:
                     item_based_eta = remaining_items / rate
-        elif (movies_limit != -1 or series_limit != -1) and elapsed > 10:
+        elif (movies_limit != -1 or episodes_limit != -1) and elapsed > 10:
             # At least one limit is set
-            total_items = movies_prefetched + series_prefetched
+            total_items = movies_prefetched + episodes_prefetched
             total_target = 0
 
             if movies_limit != -1:
                 total_target += movies_limit
-            if series_limit != -1:
-                total_target += series_limit
+            if episodes_limit != -1:
+                total_target += episodes_limit
 
             if total_items > 0 and total_target > 0:
                 rate = total_items / elapsed
@@ -393,7 +393,7 @@ class ProgressTracker:
             eta_seconds = item_based_eta
         else:
             # No limits or can't calculate yet
-            if max_execution_time == -1 and (movies_limit == -1 or series_limit == -1):
+            if max_execution_time == -1 and (movies_limit == -1 or episodes_limit == -1):
                 eta_str = "N/A (unlimited)"
             eta_seconds = None
 
@@ -1402,7 +1402,7 @@ class StreamsPrefetcher:
         logger.debug("🏁 PROCESSING PHASE")
         logger.debug(f"   • Catalogs to process: {total_to_process}")
         logger.debug(f"   • Movies global limit: {self.movies_global_limit}")
-        logger.debug(f"   • Series global limit: {self.series_global_limit}")
+        logger.debug(f"   • Episodes global limit: {self.episodes_global_limit}")
         logger.debug(f"   • Delay between items: {self.delay}s")
 
         self.processing_start = time.time()
@@ -1426,7 +1426,7 @@ class StreamsPrefetcher:
 
             # Store initial counts at the start of processing this catalog
             initial_movies_count = self.prefetched_movies_count
-            initial_series_count = self.prefetched_series_count
+            initial_episodes_count = self.prefetched_episodes_count
             initial_cache_requests = self.cache_requests_sent_count  # Track cache requests at start
             initial_cache_requests_successful = self.cache_requests_successful_count  # Track successful cache requests at start
 
@@ -1472,8 +1472,8 @@ class StreamsPrefetcher:
                     fetched_items=page,
                     prefetched_movies_count=self.prefetched_movies_count,
                     movies_global_limit=self.movies_global_limit,
-                    prefetched_series_count=self.prefetched_series_count,
-                    series_global_limit=self.series_global_limit,
+                    prefetched_episodes_count=self.prefetched_episodes_count,
+                    episodes_global_limit=self.episodes_global_limit,
                     prefetched_cached_count=self.prefetched_cached_count,
                     prefetched_in_this_catalog=prefetched_in_this_catalog,
                     per_catalog_limit=per_catalog_limit,
@@ -1566,15 +1566,15 @@ class StreamsPrefetcher:
                         'total_items': len(metas),
                         'prefetched_movies_count': self.prefetched_movies_count,
                         'movies_global_limit': self.movies_global_limit,
-                        'prefetched_series_count': self.prefetched_series_count,
-                        'series_global_limit': self.series_global_limit,
+                        'prefetched_episodes_count': self.prefetched_episodes_count,
+                        'episodes_global_limit': self.episodes_global_limit,
                         'prefetched_cached_count': self.prefetched_cached_count,
                         'prefetched_in_this_catalog': prefetched_in_this_catalog,
                         'per_catalog_limit': per_catalog_limit,
                         'prefetched_movies_count_at_start': initial_movies_count,
-                        'prefetched_series_count_at_start': initial_series_count,
+                        'prefetched_episodes_count_at_start': initial_episodes_count,
                         'catalog_movies_count': self.prefetched_movies_count - initial_movies_count,
-                        'catalog_series_count': self.prefetched_series_count - initial_series_count,
+                        'catalog_episodes_count': self.prefetched_episodes_count - initial_episodes_count,
                         'start_time': self.processing_start,
                         'max_execution_time': self.max_execution_time
                     }
@@ -1903,7 +1903,8 @@ class StreamsPrefetcher:
         stat_lines = [
             f"  Catalogs processed:          {self.progress_tracker.current_catalog_index} / {stats['filtered_catalogs']}",
             f"  Movies prefetched:           {stats['movies_prefetched']} (Limit: {self.movies_global_limit if self.movies_global_limit != -1 else '∞'})",
-            f"  Series prefetched:           {stats['series_prefetched']} (Limit: {self.series_global_limit if self.series_global_limit != -1 else '∞'})",
+            f"  Episodes prefetched:         {stats['episodes_prefetched']} (Limit: {self.episodes_global_limit if self.episodes_global_limit != -1 else '∞'})",
+            f"  Series prefetched:           {stats['series_prefetched']} (supplementary)",
             f"  Total pages fetched:         {stats['total_pages_fetched']}",
             f"  Episodes discovered:         {stats['episodes_found']}",
             f"  Items skipped from cache:    {stats['cached_count']}",
@@ -2000,10 +2001,10 @@ Examples:
     params = {
         'Addon URLs': ', '.join([f"{t}:{u}" for u, t in args.addon_urls]),
         'Movies Global Limit': str(args.movies_global_limit) if args.movies_global_limit != -1 else 'Unlimited',
-        'Series Global Limit': str(args.series_global_limit) if args.series_global_limit != -1 else 'Unlimited',
+        'Episodes Global Limit': str(args.episodes_global_limit) if args.episodes_global_limit != -1 else 'Unlimited',
         'Movies per Catalog': str(args.movies_per_catalog) if args.movies_per_catalog != -1 else 'Unlimited',
-        'Series per Catalog': str(args.series_per_catalog) if args.series_per_catalog != -1 else 'Unlimited',
-        'Items per Mixed Catalog': str(args.items_per_mixed_catalog) if args.items_per_mixed_catalog != -1 else 'Unlimited',
+        'Episodes per Catalog': str(args.episodes_per_catalog) if args.episodes_per_catalog != -1 else 'Unlimited',
+        'Episodes per Mixed Catalog': str(args.episodes_per_mixed_catalog) if args.episodes_per_mixed_catalog != -1 else 'Unlimited',
         'Max Movie Items per Catalog Fetch': str(args.max_movie_items_per_catalog_fetch) if args.max_movie_items_per_catalog_fetch != -1 else 'Unlimited',
         'Max Series Items per Catalog Fetch': str(args.max_series_items_per_catalog_fetch) if args.max_series_items_per_catalog_fetch != -1 else 'Unlimited',
         'Max Mixed Items per Catalog Fetch': str(args.max_mixed_items_per_catalog_fetch) if args.max_mixed_items_per_catalog_fetch != -1 else 'Unlimited',
@@ -2022,7 +2023,7 @@ Examples:
         print(f"  {param:<28}: {value}")
     print("-" * terminal_width)
 
-    prefetcher = StreamsPrefetcher(args.addon_urls, movies_global_limit=args.movies_global_limit, series_global_limit=args.series_global_limit, movies_per_catalog=args.movies_per_catalog, series_per_catalog=args.series_per_catalog, items_per_mixed_catalog=args.items_per_mixed_catalog, delay=args.delay, proxy_url=args.proxy, randomize_catalogs=args.randomize_catalog_processing, randomize_items=args.randomize_item_prefetching, cache_validity_seconds=args.cache_validity, max_execution_time=args.max_execution_time, enable_logging=args.enable_logging, max_movie_items_per_catalog_fetch=args.max_movie_items_per_catalog_fetch, max_series_items_per_catalog_fetch=args.max_series_items_per_catalog_fetch, max_mixed_items_per_catalog_fetch=args.max_mixed_items_per_catalog_fetch)
+    prefetcher = StreamsPrefetcher(args.addon_urls, movies_global_limit=args.movies_global_limit, episodes_global_limit=args.episodes_global_limit, movies_per_catalog=args.movies_per_catalog, episodes_per_catalog=args.episodes_per_catalog, episodes_per_mixed_catalog=args.episodes_per_mixed_catalog, delay=args.delay, proxy_url=args.proxy, randomize_catalogs=args.randomize_catalog_processing, randomize_items=args.randomize_item_prefetching, cache_validity_seconds=args.cache_validity, max_execution_time=args.max_execution_time, enable_logging=args.enable_logging, max_movie_items_per_catalog_fetch=args.max_movie_items_per_catalog_fetch, max_series_items_per_catalog_fetch=args.max_series_items_per_catalog_fetch, max_mixed_items_per_catalog_fetch=args.max_mixed_items_per_catalog_fetch)
     
     try:
         results = prefetcher.process_all()
