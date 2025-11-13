@@ -1263,7 +1263,7 @@ class StreamsPrefetcher:
     def _finalize_statistics(self):
         """Finalize statistics by copying live counters to results dict"""
         self.results['statistics']['movies_prefetched'] = self.prefetched_movies_count
-        self.results['statistics']['series_prefetched'] = self.prefetched_series_count
+        self.results['statistics']['series_prefetched'] = self.series_count  # Series that contributed ≥1 episode
         self.results['statistics']['episodes_prefetched'] = self.prefetched_episodes_count
         self.results['statistics']['service_cache_requests_sent'] = self.cache_requests_sent_count
         self.results['statistics']['service_cache_requests_successful'] = self.cache_requests_successful_count
@@ -1656,27 +1656,23 @@ class StreamsPrefetcher:
                             continue
                         self.results['statistics']['episodes_found'] += len(episodes)
 
-                        # Check if series is already cached (75% threshold)
-                        cached_episodes = 0
-                        for ep in episodes:
-                            ep_item = self.create_episode_item(item_obj, ep)
-                            if self.is_cache_valid(ep_item):
-                                cached_episodes += 1
-
-                        if len(episodes) > 0 and (cached_episodes / len(episodes)) >= 0.75:
-                            cached_count += 1
-                            self.prefetched_cached_count += 1
-                            item_statuses_on_page.append('cached')
-                            self._current_dashboard_args = dashboard_args
-                            self._auto_redraw_dashboard()
-                            # Check if pause was requested
-                            if self.scheduler and self.scheduler.pause_requested:
-                                self.scheduler.complete_pause()
-                                self.scheduler.pause_event.wait()
-                            continue
+                        # Track if this is the first episode from this series
+                        series_imdb_id = item_obj.get_series_imdb_id()
+                        series_first_episode = series_imdb_id not in self.processed_series_ids
 
                         series_had_success = False
+                        episodes_processed_from_series = 0
                         for ep in episodes:
+                            # Check episode limit BEFORE processing
+                            if self.episodes_global_limit != -1 and self.prefetched_episodes_count >= self.episodes_global_limit:
+                                logger.info(f"Reached global episode limit ({self.episodes_global_limit}), stopping mid-series")
+                                break
+
+                            # Check catalog limit BEFORE processing
+                            if self.episodes_per_catalog != -1 and prefetched_in_this_catalog >= self.episodes_per_catalog:
+                                logger.info(f"Reached catalog episode limit ({self.episodes_per_catalog}), moving to next catalog")
+                                break
+
                             # Check if paused BEFORE starting new episode (wait if paused)
                             if self.scheduler:
                                 self.scheduler.pause_event.wait()  # Blocks if paused, returns immediately if not
@@ -1712,7 +1708,17 @@ class StreamsPrefetcher:
                                 break
 
                             if self.prefetch_streams(ep_item):
-                               self.update_cache(ep_item); series_had_success = True; self.prefetched_episodes_count += 1
+                               self.update_cache(ep_item)
+                               series_had_success = True
+                               self.prefetched_episodes_count += 1
+                               prefetched_in_this_catalog += 1
+                               episodes_processed_from_series += 1
+
+                               # Increment series counter if this is first episode from this series
+                               if series_first_episode:
+                                   self.series_count += 1
+                                   self.processed_series_ids.add(series_imdb_id)
+                                   series_first_episode = False
 
                             # Update dashboard immediately with latest cache request counts (bypass throttling)
                             if self.cache_uncached_streams_enabled:
@@ -1725,9 +1731,11 @@ class StreamsPrefetcher:
                                 )
 
                         if series_had_success:
-                            success_count += 1; prefetched_in_this_catalog += 1; self.prefetched_series_count += 1
+                            success_count += 1
                             item_statuses_on_page.append('successful')
-                        else: failed_count += 1; item_statuses_on_page.append('failed')
+                        else:
+                            failed_count += 1
+                            item_statuses_on_page.append('failed')
 
                 self._is_processing_items = False  # Disable auto-refresh
 
