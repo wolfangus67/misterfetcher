@@ -1007,10 +1007,10 @@ function restoreCollapsedStates() {
 function initializeUnlimitedCheckboxes() {
     // Initialize all limit fields
     toggleUnlimited('movies-global-limit');
-    toggleUnlimited('series-global-limit');
+    toggleUnlimited('episodes-global-limit');
     toggleUnlimited('movies-per-catalog');
-    toggleUnlimited('series-per-catalog');
-    toggleUnlimited('items-per-mixed-catalog');
+    toggleUnlimited('episodes-per-catalog');
+    toggleUnlimited('episodes-per-mixed-catalog');
     toggleUnlimited('max-movie-items-per-catalog-fetch');
     toggleUnlimited('max-series-items-per-catalog-fetch');
     toggleUnlimited('max-mixed-items-per-catalog-fetch');
@@ -1021,8 +1021,8 @@ function validateFetchVsPrefetch() {
     // Validate fetch vs prefetch limits for all catalog types
     const catalogTypes = [
         { type: 'movie', prefetch: 'movies-per-catalog', fetch: 'max-movie-items-per-catalog-fetch' },
-        { type: 'series', prefetch: 'series-per-catalog', fetch: 'max-series-items-per-catalog-fetch' },
-        { type: 'mixed', prefetch: 'items-per-mixed-catalog', fetch: 'max-mixed-items-per-catalog-fetch' }
+        { type: 'series', prefetch: 'episodes-per-catalog', fetch: 'max-series-items-per-catalog-fetch' },
+        { type: 'mixed', prefetch: 'episodes-per-mixed-catalog', fetch: 'max-mixed-items-per-catalog-fetch' }
     ];
 
     catalogTypes.forEach(({ type, prefetch, fetch }) => {
@@ -1351,10 +1351,10 @@ function populateConfigurationForm(config) {
 
     // Populate limits with unlimited checkbox handling
     setLimitValue('movies-global-limit', config.movies_global_limit);
-    setLimitValue('series-global-limit', config.series_global_limit);
+    setLimitValue('episodes-global-limit', config.episodes_global_limit);
     setLimitValue('movies-per-catalog', config.movies_per_catalog);
-    setLimitValue('series-per-catalog', config.series_per_catalog);
-    setLimitValue('items-per-mixed-catalog', config.items_per_mixed_catalog);
+    setLimitValue('episodes-per-catalog', config.episodes_per_catalog);
+    setLimitValue('episodes-per-mixed-catalog', config.episodes_per_mixed_catalog);
 
     // Populate fetch limits with unlimited checkbox handling
     setLimitValue('max-movie-items-per-catalog-fetch', config.max_movie_items_per_catalog_fetch);
@@ -1968,10 +1968,10 @@ function validateLimits(config) {
 
     const limitFields = [
         { field: 'movies_global_limit', name: 'Movies Global Limit' },
-        { field: 'series_global_limit', name: 'Series Global Limit' },
+        { field: 'episodes_global_limit', name: 'Episodes Global Limit' },
         { field: 'movies_per_catalog', name: 'Movies per Catalog' },
-        { field: 'series_per_catalog', name: 'Series per Catalog' },
-        { field: 'items_per_mixed_catalog', name: 'Items per Mixed Catalog' }
+        { field: 'episodes_per_catalog', name: 'Episodes per Catalog' },
+        { field: 'episodes_per_mixed_catalog', name: 'Episodes per Mixed Catalog' }
     ];
 
     limitFields.forEach(({ field, name }) => {
@@ -2090,10 +2090,10 @@ async function saveConfigurationSilent() {
         const config = {
             addon_urls: addonUrls,
             movies_global_limit: getLimitValue('movies-global-limit'),
-            series_global_limit: getLimitValue('series-global-limit'),
+            episodes_global_limit: getLimitValue('episodes-global-limit'),
             movies_per_catalog: getLimitValue('movies-per-catalog'),
-            series_per_catalog: getLimitValue('series-per-catalog'),
-            items_per_mixed_catalog: getLimitValue('items-per-mixed-catalog'),
+            episodes_per_catalog: getLimitValue('episodes-per-catalog'),
+            episodes_per_mixed_catalog: getLimitValue('episodes-per-mixed-catalog'),
             max_movie_items_per_catalog_fetch: getLimitValue('max-movie-items-per-catalog-fetch'),
             max_series_items_per_catalog_fetch: getLimitValue('max-series-items-per-catalog-fetch'),
             max_mixed_items_per_catalog_fetch: getLimitValue('max-mixed-items-per-catalog-fetch'),
@@ -2185,10 +2185,10 @@ async function saveConfiguration() {
         const config = {
             addon_urls: addonUrls,
             movies_global_limit: getLimitValue('movies-global-limit'),
-            series_global_limit: getLimitValue('series-global-limit'),
+            episodes_global_limit: getLimitValue('episodes-global-limit'),
             movies_per_catalog: getLimitValue('movies-per-catalog'),
-            series_per_catalog: getLimitValue('series-per-catalog'),
-            items_per_mixed_catalog: getLimitValue('items-per-mixed-catalog'),
+            episodes_per_catalog: getLimitValue('episodes-per-catalog'),
+            episodes_per_mixed_catalog: getLimitValue('episodes-per-mixed-catalog'),
             max_movie_items_per_catalog_fetch: getLimitValue('max-movie-items-per-catalog-fetch'),
             max_series_items_per_catalog_fetch: getLimitValue('max-series-items-per-catalog-fetch'),
             max_mixed_items_per_catalog_fetch: getLimitValue('max-mixed-items-per-catalog-fetch'),
@@ -3658,9 +3658,9 @@ function updateJobStatusUI(status, caller = 'unknown') {
                                 const moviesLimit = config.movies_global_limit === -1 ? 'Unlimited' : config.movies_global_limit;
                                 configHtml += `<li><strong>Movies Global Limit:</strong> ${moviesLimit}</li>`;
                             }
-                            if (config.series_global_limit !== undefined) {
-                                const seriesLimit = config.series_global_limit === -1 ? 'Unlimited' : config.series_global_limit;
-                                configHtml += `<li><strong>Series Global Limit:</strong> ${seriesLimit}</li>`;
+                            if (config.episodes_global_limit !== undefined) {
+                                const episodesLimit = config.episodes_global_limit === -1 ? 'Unlimited' : config.episodes_global_limit;
+                                configHtml += `<li><strong>Episodes Global Limit:</strong> ${episodesLimit}</li>`;
                             }
                             if (config.delay !== undefined) {
                                 configHtml += `<li><strong>Delay:</strong> ${config.delay}s</li>`;
@@ -3915,17 +3915,17 @@ function updateProgressInfo(progress, preserveActionText = false) {
     const moviesPrefetched = progress.movies_prefetched || 0;
     const moviesLimit = progress.movies_limit || -1;
     const seriesPrefetched = progress.series_prefetched || 0;
-    const seriesLimit = progress.series_limit || -1;
     const episodesPrefetched = progress.episodes_prefetched || 0;
+    const episodesLimit = progress.episodes_limit || -1;
     const cachedCount = progress.cached_count || 0;
 
     document.getElementById('stat-movies').textContent = moviesPrefetched;
     document.getElementById('stat-movies-limit').textContent = moviesLimit === -1 ? 'of ∞' : `of ${moviesLimit}`;
 
-    document.getElementById('stat-series').textContent = seriesPrefetched;
-    document.getElementById('stat-series-limit').textContent = seriesLimit === -1 ? 'of ∞' : `of ${seriesLimit}`;
-
     document.getElementById('stat-episodes').textContent = episodesPrefetched;
+    document.getElementById('stat-episodes-limit').textContent = episodesLimit === -1 ? 'of ∞' : `of ${episodesLimit}`;
+
+    document.getElementById('stat-series').textContent = seriesPrefetched;
 
     document.getElementById('stat-cached').textContent = cachedCount;
 

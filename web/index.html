@@ -122,18 +122,18 @@ Default: <strong>Unlimited</strong>"><svg viewBox="0 0 24 24" fill="none" stroke
                             </div>
 
                             <div class="form-group">
-                                <label for="series-global-limit">
-                                    Series Global Limit
-                                    <span class="info-icon" data-tooltip="Total maximum number of series items to prefetch across all catalogs. Check 'Unlimited' for no limit.
+                                <label for="episodes-global-limit">
+                                    Episodes Global Limit
+                                    <span class="info-icon" data-tooltip="Total maximum number of episode items to prefetch across all catalogs. Check 'Unlimited' for no limit.
 
 Default: <strong>Unlimited</strong>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                                 <circle cx="12" cy="12" r="10"></circle>
                                                 <path d="M12 16v-4M12 8h.01"></path>
                                             </svg></span>
                                 </label>
-                                <input type="number" id="series-global-limit" value="15" min="0">
+                                <input type="number" id="episodes-global-limit" value="15" min="0">
                                 <label class="checkbox-label">
-                                    <input type="checkbox" id="series-global-limit-unlimited" checked onchange="toggleUnlimited('series-global-limit')">
+                                    <input type="checkbox" id="episodes-global-limit-unlimited" checked onchange="toggleUnlimited('episodes-global-limit')">
                                     Unlimited
                                 </label>
                             </div>
@@ -190,18 +190,18 @@ Default: <strong>Unlimited</strong>"><svg viewBox="0 0 24 24" fill="none" stroke
                             </div>
 
                             <div class="form-group">
-                                <label for="series-per-catalog">
-                                    Series to Prefetch per Catalog
-                                    <span class="info-icon" data-tooltip="Maximum number of series items to prefetch from each series catalog. Check 'Unlimited' for no limit.
+                                <label for="episodes-per-catalog">
+                                    Episodes to Prefetch per Catalog
+                                    <span class="info-icon" data-tooltip="Maximum number of episode items to prefetch from each series catalog. Check 'Unlimited' for no limit.
 
-Default: <strong>5</strong>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+Default: <strong>50</strong>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                                 <circle cx="12" cy="12" r="10"></circle>
                                                 <path d="M12 16v-4M12 8h.01"></path>
                                             </svg></span>
                                 </label>
-                                <input type="number" id="series-per-catalog" value="5" min="0">
+                                <input type="number" id="episodes-per-catalog" value="50" min="0">
                                 <label class="checkbox-label">
-                                    <input type="checkbox" id="series-per-catalog-unlimited" onchange="toggleUnlimited('series-per-catalog')">
+                                    <input type="checkbox" id="episodes-per-catalog-unlimited" onchange="toggleUnlimited('episodes-per-catalog')">
                                     Unlimited
                                 </label>
                             </div>
@@ -240,19 +240,19 @@ Default: <strong>Unlimited</strong>"><svg viewBox="0 0 24 24" fill="none" stroke
                         </div>
 
                         <div class="form-group">
-                            <label for="items-per-mixed-catalog">
-                                Items to Prefetch per Mixed Catalog
-                                <span class="info-icon" data-tooltip="Maximum number of items to prefetch from catalogs that contain both movies and series. Check 'Unlimited' for no limit.
+                            <label for="episodes-per-mixed-catalog">
+                                Episodes to Prefetch per Mixed Catalog
+                                <span class="info-icon" data-tooltip="Maximum number of episode items to prefetch from catalogs that contain both movies and series. Movies count as 1 episode-equivalent. Check 'Unlimited' for no limit.
 
-Default: <strong>30</strong>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+Default: <strong>20</strong>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                                 <circle cx="12" cy="12" r="10"></circle>
                                                 <path d="M12 16v-4M12 8h.01"></path>
                                             </svg></span>
                             </label>
-                            <input type="number" id="items-per-mixed-catalog" value="30" min="0" style="max-width: 200px;">
+                            <input type="number" id="episodes-per-mixed-catalog" value="20" min="0" style="max-width: 200px;">
                             <div style="margin-top: 8px;">
                                 <label class="checkbox-label">
-                                    <input type="checkbox" id="items-per-mixed-catalog-unlimited" onchange="toggleUnlimited('items-per-mixed-catalog')">
+                                    <input type="checkbox" id="episodes-per-mixed-catalog-unlimited" onchange="toggleUnlimited('episodes-per-mixed-catalog')">
                                     Unlimited
                                 </label>
                             </div>
@@ -882,18 +882,19 @@ Default: <strong>Disabled</strong>"><svg viewBox="0 0 24 24" fill="none" stroke=
                         </div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-icon series-icon">📺</div>
-                        <div class="stat-content">
-                            <div class="stat-label">Series Prefetched</div>
-                            <div class="stat-value" id="stat-series">0</div>
-                            <div class="stat-limit" id="stat-series-limit">of ∞</div>
-                        </div>
-                    </div>
-                    <div class="stat-card">
                         <div class="stat-icon episodes-icon">🎞️</div>
                         <div class="stat-content">
                             <div class="stat-label">Episodes Prefetched</div>
                             <div class="stat-value" id="stat-episodes">0</div>
+                            <div class="stat-limit" id="stat-episodes-limit">of ∞</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon series-icon">📺</div>
+                        <div class="stat-content">
+                            <div class="stat-label">Series Prefetched</div>
+                            <div class="stat-value" id="stat-series">0</div>
+                            <div class="stat-limit" style="color: #888; font-size: 0.9em;">(supplementary)</div>
                         </div>
                     </div>
                     <div class="stat-card">
