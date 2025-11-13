@@ -814,7 +814,7 @@ class StreamsPrefetcher:
             return False
 
         cursor = self.db_conn.cursor()
-        cursor.execute("SELECT timestamp FROM cache WHERE imdb_id = ?", (item.imdb_id,))
+        cursor.execute("SELECT timestamp FROM cache WHERE imdb_id = ?", (item.get_cache_id(),))
         row = cursor.fetchone()
         is_valid = row and (time.time() - row[0]) < self.cache_validity_seconds
 
@@ -860,7 +860,7 @@ class StreamsPrefetcher:
         current_time = time.time()
         cursor = self.db_conn.cursor()
         cursor.execute("INSERT OR REPLACE INTO cache (imdb_id, timestamp, title_name) VALUES (?, ?, ?)",
-                      (item.imdb_id, current_time, item.get_cache_title()))
+                      (item.get_cache_id(), current_time, item.get_cache_title()))
         self.db_conn.commit()
 
         log_msg = f"Cache updated: {item.get_logging_text()}"

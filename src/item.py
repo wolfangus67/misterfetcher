@@ -68,6 +68,18 @@ class Item:
             return f"{self.series_imdb_id}:{self.season}:{self.episode}"
         return self.imdb_id
 
+    def get_cache_id(self) -> str:
+        """Get the IMDb ID to use for caching.
+
+        For movies: movie IMDb ID
+        For episodes: {series_imdb_id}:{season}:{episode}
+        For series: series IMDb ID
+        """
+        if self.item_type == 'episode':
+            return f"{self.series_imdb_id}:{self.season}:{self.episode}"
+        else:
+            return self.imdb_id
+
     def get_series_imdb_id(self) -> str:
         """Get the base series IMDb ID (for episodes)"""
         if self.is_episode():
