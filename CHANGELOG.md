@@ -5,6 +5,38 @@ All notable changes to Streams Prefetcher will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2025-11-13
+
+### Changed
+- **BREAKING**: Replace series-based limiting with episode-based limiting throughout the application
+- Configuration schema: `series_global_limit` → `episodes_global_limit`
+- Configuration schema: `series_per_catalog` → `episodes_per_catalog` (default 50, matching movies)
+- Configuration schema: `items_per_mixed_catalog` → `episodes_per_mixed_catalog` (default 20)
+- Episode-level caching with composite IMDb IDs (`{series_id}:{season}:{episode}`)
+- Stop processing mid-series when episode limit reached (no longer completes full series)
+- Series counter now supplementary statistic (tracks series contributing ≥1 episode)
+- Mixed catalogs: movies count as 1 episode-equivalent
+- Frontend: Episodes displayed with limit, series shown as supplementary stat
+- Progress tracking: Episode-based ETA calculations and limit checks
+- Statistics: Episode limits shown alongside episode counts, series count labeled as supplementary
+
+### Added
+- Automatic configuration migration from series-based to episode-based limits (1:1 ratio)
+- Episode limit validation and display in frontend
+- Episode-specific progress indicators in real-time dashboard
+
+### Fixed
+- Inconsistent limiting behavior between series and movies
+- Cache threshold logic for series (removed 75% threshold)
+- Statistics display now accurately reflects episode-based processing
+
+### Migration Notes
+- Existing configurations automatically migrated on first load
+- Old config keys: `series_global_limit`, `series_per_catalog`, `items_per_mixed_catalog`
+- New config keys: `episodes_global_limit`, `episodes_per_catalog`, `episodes_per_mixed_catalog`
+- Conversion ratio: 1:1 (1 episode ≈ 1 movie for prefetching streams)
+- Database cache format updated to use episode-level composite IDs
+
 ## [0.14.1] - 2025-10-21
 
 ### Added
