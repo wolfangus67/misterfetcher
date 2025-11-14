@@ -11,6 +11,7 @@ This directory contains the test suite for the streams-prefetcher application, c
 ### Integration Tests
 - **test_integration.py** - End-to-end workflow tests (requires running container)
 - **test_api_endpoints.py** - API endpoint tests (requires running container)
+- **test_episode_based_limiting.py** - Episode-based limiting feature tests (requires running container)
 
 ### Component Tests
 - **test_addon_objects.py** - Tests Addon object usage in web_app
@@ -96,6 +97,17 @@ The test suite covers:
 - Error handling scenarios
 - Performance basics
 
+### Episode-Based Limiting ✅ (with container)
+- Episodes global limit enforcement
+- Episodes per catalog limit enforcement
+- Episodes per mixed catalog limit enforcement
+- Series supplementary counter accuracy
+- Episode-level cache ID format (series_id:season:episode)
+- Config migration from old series-based keys
+- Progress stats structure and accuracy
+- Unlimited (-1) limits handling
+- Multiple catalog types interaction
+
 ## Key Test Cases
 
 ### Bug Fixes Tested
@@ -118,15 +130,16 @@ The test suite covers:
 
 ```
 tests/
-├── __init__.py                 # pytest configuration
-├── conftest.py                 # Shared fixtures
-├── test_requirements.txt       # Test dependencies
-├── README.md                   # This file
-├── test_item_class.py          # Item class tests
-├── test_addon_objects.py       # Addon object tests
-├── test_ui_features.py         # UI functionality tests
-├── test_integration.py         # End-to-end tests
-└── test_api_endpoints.py       # API endpoint tests
+├── __init__.py                      # pytest configuration
+├── conftest.py                      # Shared fixtures
+├── test_requirements.txt            # Test dependencies
+├── README.md                        # This file
+├── test_item_class.py               # Item class tests
+├── test_addon_objects.py            # Addon object tests
+├── test_ui_features.py              # UI functionality tests
+├── test_integration.py              # End-to-end tests
+├── test_api_endpoints.py            # API endpoint tests
+└── test_episode_based_limiting.py   # Episode-based limiting tests
 ```
 
 ## Fixtures
