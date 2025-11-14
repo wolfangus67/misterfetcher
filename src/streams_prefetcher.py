@@ -1526,10 +1526,10 @@ class StreamsPrefetcher:
                     items_processed_on_page += 1
 
                     # Progress checkpoint logging every 10 items
-                    total_items_processed = self.prefetched_movies_count + self.prefetched_series_count
+                    total_items_processed = self.prefetched_movies_count + self.series_count
                     if total_items_processed % 10 == 0:
                         logger.debug(f"📍 PROGRESS CHECKPOINT: {total_items_processed} items processed")
-                        logger.debug(f"   • Movies: {self.prefetched_movies_count}, Series: {self.prefetched_series_count}")
+                        logger.debug(f"   • Movies: {self.prefetched_movies_count}, Series: {self.series_count}")
                         logger.debug(f"   • Cache requests sent: {self.cache_requests_sent_count}")
                         logger.debug(f"   • Cache requests successful: {self.cache_requests_successful_count}")
                         logger.debug(f"   • Current catalog: {cat_name} (item {items_processed_on_page} of {len(metas)})")
