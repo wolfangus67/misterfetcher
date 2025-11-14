@@ -93,7 +93,12 @@ class TestEndToEndWorkflow:
     def test_addon_to_item_workflow(self, mock_get, mock_manifest):
         """Test workflow from addon loading to item processing."""
         # This tests the integration between Addon and Item classes
-        from web_app import load_catalogs
+        try:
+            from web_app import load_catalogs
+        except ModuleNotFoundError as e:
+            if 'flask' in str(e).lower():
+                pytest.skip("Flask not installed - skipping web_app test")
+            raise
         from item import Item
 
         # Mock addon manifest
@@ -266,10 +271,17 @@ class TestPerformanceIntegration:
 
             # Check results
             success_count = 0
+            has_connection_error = False
             while not results.empty():
                 result = results.get()
                 if isinstance(result, int) and result == 200:
                     success_count += 1
+                elif isinstance(result, requests.exceptions.ConnectionError):
+                    has_connection_error = True
+
+            # Skip if container not accessible
+            if has_connection_error and success_count == 0:
+                pytest.skip("Container not accessible on localhost:5000 - integration test skipped")
 
             # At least 3 should succeed
             assert success_count >= 3

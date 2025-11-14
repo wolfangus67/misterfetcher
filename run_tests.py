@@ -25,7 +25,7 @@ def run_integration_tests():
     """Run integration tests (requires running container)."""
     print("🔗 Running Integration Tests...")
     print("⚠️  Make sure the streams-prefetcher container is running!")
-    cmd = "python3 -m pytest tests/test_integration.py -v -s"
+    cmd = "python3 -m pytest tests/test_integration.py tests/test_episode_based_limiting.py -v -s"
     return run_command(cmd)
 
 

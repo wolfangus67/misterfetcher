@@ -222,6 +222,9 @@ def update_config():
         if not data:
             return jsonify({'success': False, 'error': 'No data provided'}), 400
 
+        # Migrate old config keys BEFORE validation
+        data = config_manager._migrate_series_to_episode_limits(data)
+
         # Validate configuration
         validation_errors = validate_configuration(data)
         if validation_errors:

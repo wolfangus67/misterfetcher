@@ -241,7 +241,12 @@ class TestCatalogEndpoints:
     def test_load_catalogs_endpoint(self, mock_get, mock_manifest):
         """Test catalog loading functionality."""
         # This tests the internal load_catalogs function
-        from web_app import load_catalogs
+        try:
+            from web_app import load_catalogs
+        except ModuleNotFoundError as e:
+            if 'flask' in str(e).lower():
+                pytest.skip("Flask not installed - skipping web_app test")
+            raise
 
         # Mock successful manifest response
         mock_response = Mock()

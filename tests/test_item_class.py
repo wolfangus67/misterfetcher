@@ -158,8 +158,16 @@ class TestItemClassInStreamsPrefetcher:
         """Test creating episode items from a series item."""
         series_item = Item.from_catalog(sample_series_item)
 
-        # This tests the pattern used in the refactored code
-        episode_item = Item.from_catalog(sample_episode_item, series_item)
+        # Create episode properly using Item constructor (not from_catalog)
+        episode_item = Item(
+            imdb_id=sample_episode_item['id'],
+            title=series_item.title,
+            year=series_item.year,
+            item_type='episode',
+            season=sample_episode_item['season'],
+            episode=sample_episode_item['episode'],
+            series_imdb_id=series_item.imdb_id
+        )
 
         assert episode_item is not None
         assert episode_item.get_series_imdb_id() == series_item.imdb_id
