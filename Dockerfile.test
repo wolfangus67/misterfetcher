@@ -1,0 +1,22 @@
+# Dockerfile for streams-prefetcher integration test runner
+# This container runs in the same Docker network as streams-prefetcher
+# to enable integration tests that were skipped on the host.
+
+FROM python:3.11-alpine
+
+# Install test dependencies
+RUN pip install --no-cache-dir pytest requests
+
+# Set working directory
+WORKDIR /app
+
+# Copy test files and source code
+COPY tests/ /app/tests/
+COPY src/ /app/src/
+
+# Set environment variable for container-to-container communication
+# The test runner will access streams-prefetcher via its container name
+ENV STREAMS_PREFETCHER_HOST=streams-prefetcher:5000
+
+# Default command runs all integration tests
+CMD ["pytest", "tests/", "-v", "-s", "--tb=short"]

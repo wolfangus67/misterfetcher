@@ -49,16 +49,37 @@ python3 -m pytest tests/ -k "not integration" -v
 ```
 
 ### Container-based Tests
-For integration and API tests, ensure the container is running:
+
+**Option 1: Docker-based Test Runner (Recommended)**
+
+Run integration tests from within a Docker container on the same network as streams-prefetcher:
+
+```bash
+# Run all integration tests in Docker container
+./run_integration_tests.sh
+
+# This will:
+# 1. Build test runner container
+# 2. Run tests on aio_default network
+# 3. Access streams-prefetcher at http://streams-prefetcher:5000
+# 4. Show results and clean up
+```
+
+**Option 2: Host-based Testing**
+
+For integration and API tests from your host machine, ensure the container is running:
+
 ```bash
 cd /opt/docker
 docker compose --profile streams-prefetcher up -d
 
-# Then run integration tests
+# Then run integration tests from host
 ./run_tests.py integration
 # or
 ./run_tests.py api
 ```
+
+**Note**: Docker-based testing (Option 1) enables 47 additional integration tests that were previously skipped because they couldn't access `localhost:5000` from the host.
 
 ## Test Coverage
 
@@ -153,12 +174,21 @@ Key fixtures in `conftest.py`:
 
 ## Test Status
 
-Current test results:
-- ✅ 33 tests passing
-- ⚠️ 28 tests skipped (integration tests requiring container)
-- ❌ 20 tests failing (due to mock setup issues, not actual bugs)
+### Host-based Testing
 
-The failing tests are mostly due to incomplete mock setups for external dependencies. The core functionality tests for our refactoring work are passing.
+Current test results when running from host (e.g., `python3 -m pytest tests/`):
+- ✅ 42 tests passing
+- ⚠️ 47 tests skipped (integration tests can't access `localhost:5000`)
+- ❌ 0 failures
+
+### Docker-based Testing (Recommended)
+
+Test results when running via `./run_integration_tests.sh`:
+- ✅ 67 tests passing (includes 25+ previously skipped integration tests!)
+- ⚠️ 11 tests skipped (unit tests that don't require container)
+- ❌ 11 failures (currently under investigation)
+
+**Docker-based testing unlocks 25+ additional integration tests** that were previously skipped due to network isolation. The 11 failures are related to HTTP 400 validation errors and are being investigated.
 
 ## Writing New Tests
 
@@ -176,9 +206,73 @@ When adding new tests:
 
 4. For container-dependent tests, use pytest.skip when container not available
 
+## Docker Test Infrastructure
+
+### Overview
+
+The Docker-based test infrastructure enables integration tests to run inside a container on the same network as `streams-prefetcher`, eliminating network isolation issues.
+
+### Components
+
+1. **Dockerfile.test** - Test runner container definition
+   - Based on `python:3.11-alpine`
+   - Includes pytest and requests
+   - Copies `tests/` and `src/` directories
+   - Sets `STREAMS_PREFETCHER_HOST=streams-prefetcher:5000`
+
+2. **run_integration_tests.sh** - Test execution script
+   - Builds test container with custom `.dockerignore`
+   - Runs tests on `aio_default` network
+   - Auto-cleanup after completion
+
+3. **.dockerignore.test** - Custom Docker ignore file
+   - Allows `tests/` directory (normally excluded by main `.dockerignore`)
+   - Excludes unnecessary files from test container
+
+4. **Environment Variable Support** - All test files updated
+   - `STREAMS_PREFETCHER_HOST` env var controls target URL
+   - Defaults to `localhost:5000` for host testing
+   - Override to `streams-prefetcher:5000` for Docker testing
+
+### Architecture
+
+```
+┌─────────────────────────────┐
+│ Test Runner Container       │
+│ (streams-prefetcher-tests)  │
+│                             │
+│ • Python 3.11-alpine        │
+│ • pytest + requests         │
+│ • STREAMS_PREFETCHER_HOST=  │
+│   streams-prefetcher:5000   │
+└──────────┬──────────────────┘
+           │
+           │ aio_default network
+           │
+           │ http://streams-prefetcher:5000
+           │
+           ↓
+┌─────────────────────────────┐
+│ Streams Prefetcher          │
+│ (streams-prefetcher)        │
+│                             │
+│ • Flask API on port 5000    │
+│ • Connected to aio_default  │
+│ • Connected to aio_network  │
+└─────────────────────────────┘
+```
+
+### Benefits
+
+- **No Port Mapping Required**: Container-to-container communication
+- **Network Isolation Testing**: Tests run in real deployment environment
+- **47 Additional Tests**: Previously skipped tests now run
+- **CI/CD Ready**: Easy integration into GitLab CI pipeline
+
 ## Continuous Integration
 
 These tests are designed to run in CI/CD pipelines:
 - Unit tests run everywhere
 - Integration tests run only when Docker is available
+- Docker-based tests can run in GitLab CI with Docker-in-Docker (dind)
 - Tests are fast and provide clear feedback

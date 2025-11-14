@@ -6,6 +6,12 @@ import pytest
 import requests
 import time
 import json
+import os
+
+
+# Get base URL from environment variable (defaults to localhost:5000 for host testing)
+# Set STREAMS_PREFETCHER_HOST=streams-prefetcher:5000 when running in Docker
+BASE_URL = f"http://{os.getenv('STREAMS_PREFETCHER_HOST', 'localhost:5000')}"
 
 
 class TestEpisodeBasedLimiting:
@@ -16,11 +22,11 @@ class TestEpisodeBasedLimiting:
         """Setup and teardown for each test."""
         try:
             # Backup original config
-            response = requests.get('http://localhost:5000/api/config', timeout=5)
+            response = requests.get(f'{BASE_URL}/api/config', timeout=5)
             self.original_config = response.json()['config']
             yield
             # Restore original config
-            requests.post('http://localhost:5000/api/config', json=self.original_config, timeout=5)
+            requests.post(f'{BASE_URL}/api/config', json=self.original_config, timeout=5)
         except requests.exceptions.ConnectionError:
             pytest.skip("Container not running - integration test skipped")
 
@@ -35,24 +41,24 @@ class TestEpisodeBasedLimiting:
             test_config['delay'] = 0  # Fast testing
 
             # Save config
-            response = requests.post('http://localhost:5000/api/config', json=test_config, timeout=5)
+            response = requests.post(f'{BASE_URL}/api/config', json=test_config, timeout=5)
             assert response.status_code == 200
 
             # Start job
-            response = requests.post('http://localhost:5000/api/job/run', timeout=5)
+            response = requests.post(f'{BASE_URL}/api/job/run', timeout=5)
             assert response.status_code == 200
 
             # Wait for completion (max 3 minutes)
             for _ in range(180):
                 time.sleep(1)
-                response = requests.get('http://localhost:5000/api/job/status', timeout=5)
+                response = requests.get(f'{BASE_URL}/api/job/status', timeout=5)
                 status = response.json()['status']
 
                 if status['status'] in ['completed', 'failed', 'cancelled']:
                     break
 
             # Verify episode limit was respected
-            final_response = requests.get('http://localhost:5000/api/job/status', timeout=5)
+            final_response = requests.get(f'{BASE_URL}/api/job/status', timeout=5)
             final_status = final_response.json()['status']
 
             if 'summary' in final_status:
@@ -74,24 +80,24 @@ class TestEpisodeBasedLimiting:
             test_config['episodes_per_catalog'] = 5  # Limit per catalog
             test_config['delay'] = 0
 
-            response = requests.post('http://localhost:5000/api/config', json=test_config, timeout=5)
+            response = requests.post(f'{BASE_URL}/api/config', json=test_config, timeout=5)
             assert response.status_code == 200
 
             # Start job
-            response = requests.post('http://localhost:5000/api/job/run', timeout=5)
+            response = requests.post(f'{BASE_URL}/api/job/run', timeout=5)
             assert response.status_code == 200
 
             # Wait for completion
             for _ in range(180):
                 time.sleep(1)
-                response = requests.get('http://localhost:5000/api/job/status', timeout=5)
+                response = requests.get(f'{BASE_URL}/api/job/status', timeout=5)
                 status = response.json()['status']
 
                 if status['status'] in ['completed', 'failed', 'cancelled']:
                     break
 
             # Check that series catalogs respected the per-catalog limit
-            final_response = requests.get('http://localhost:5000/api/job/status', timeout=5)
+            final_response = requests.get(f'{BASE_URL}/api/job/status', timeout=5)
             final_status = final_response.json()['status']
 
             if 'summary' in final_status:
@@ -113,23 +119,23 @@ class TestEpisodeBasedLimiting:
             test_config['episodes_global_limit'] = 20
             test_config['delay'] = 0
 
-            response = requests.post('http://localhost:5000/api/config', json=test_config, timeout=5)
+            response = requests.post(f'{BASE_URL}/api/config', json=test_config, timeout=5)
             assert response.status_code == 200
 
-            response = requests.post('http://localhost:5000/api/job/run', timeout=5)
+            response = requests.post(f'{BASE_URL}/api/job/run', timeout=5)
             assert response.status_code == 200
 
             # Wait for completion
             for _ in range(180):
                 time.sleep(1)
-                response = requests.get('http://localhost:5000/api/job/status', timeout=5)
+                response = requests.get(f'{BASE_URL}/api/job/status', timeout=5)
                 status = response.json()['status']
 
                 if status['status'] in ['completed', 'failed', 'cancelled']:
                     break
 
             # Verify series counter
-            final_response = requests.get('http://localhost:5000/api/job/status', timeout=5)
+            final_response = requests.get(f'{BASE_URL}/api/job/status', timeout=5)
             final_status = final_response.json()['status']
 
             if 'summary' in final_status:
@@ -158,10 +164,10 @@ class TestEpisodeBasedLimiting:
             test_config['episodes_global_limit'] = 5
             test_config['delay'] = 0
 
-            response = requests.post('http://localhost:5000/api/config', json=test_config, timeout=5)
+            response = requests.post(f'{BASE_URL}/api/config', json=test_config, timeout=5)
             assert response.status_code == 200
 
-            response = requests.post('http://localhost:5000/api/job/run', timeout=5)
+            response = requests.post(f'{BASE_URL}/api/job/run', timeout=5)
             assert response.status_code == 200
 
             # Monitor progress and check current_imdb_id format
@@ -169,7 +175,7 @@ class TestEpisodeBasedLimiting:
 
             for _ in range(60):
                 time.sleep(1)
-                response = requests.get('http://localhost:5000/api/job/status', timeout=5)
+                response = requests.get(f'{BASE_URL}/api/job/status', timeout=5)
                 status = response.json()['status']
 
                 if status['status'] == 'running':
@@ -200,12 +206,12 @@ class TestEpisodeBasedLimiting:
     def test_progress_stats_structure(self):
         """Test that progress stats include all episode-related fields."""
         try:
-            response = requests.post('http://localhost:5000/api/job/run', timeout=5)
+            response = requests.post(f'{BASE_URL}/api/job/run', timeout=5)
             assert response.status_code == 200
 
             time.sleep(2)  # Let job start
 
-            response = requests.get('http://localhost:5000/api/job/status', timeout=5)
+            response = requests.get(f'{BASE_URL}/api/job/status', timeout=5)
             status = response.json()['status']
 
             # Cancel job if running
@@ -232,7 +238,7 @@ class TestEpisodeBasedLimiting:
                 assert isinstance(progress['episodes_limit'], int)
 
                 # Cancel the job
-                requests.post('http://localhost:5000/api/job/cancel', timeout=5)
+                requests.post(f'{BASE_URL}/api/job/cancel', timeout=5)
 
         except requests.exceptions.ConnectionError:
             pytest.skip("Container not running - integration test skipped")
@@ -274,11 +280,11 @@ class TestEpisodeBasedLimiting:
             }
 
             # Save config with old keys
-            response = requests.post('http://localhost:5000/api/config', json=old_config, timeout=5)
+            response = requests.post(f'{BASE_URL}/api/config', json=old_config, timeout=5)
             assert response.status_code == 200
 
             # Retrieve config and verify migration
-            response = requests.get('http://localhost:5000/api/config', timeout=5)
+            response = requests.get(f'{BASE_URL}/api/config', timeout=5)
             loaded_config = response.json()['config']
 
             # New keys should exist with migrated values
@@ -302,10 +308,10 @@ class TestMultipleCatalogTypes:
     def setup_and_teardown(self):
         """Setup and teardown for each test."""
         try:
-            response = requests.get('http://localhost:5000/api/config', timeout=5)
+            response = requests.get(f'{BASE_URL}/api/config', timeout=5)
             self.original_config = response.json()['config']
             yield
-            requests.post('http://localhost:5000/api/config', json=self.original_config, timeout=5)
+            requests.post(f'{BASE_URL}/api/config', json=self.original_config, timeout=5)
         except requests.exceptions.ConnectionError:
             pytest.skip("Container not running - integration test skipped")
 
@@ -316,23 +322,23 @@ class TestMultipleCatalogTypes:
             test_config['episodes_per_mixed_catalog'] = 3  # Small limit for testing
             test_config['delay'] = 0
 
-            response = requests.post('http://localhost:5000/api/config', json=test_config, timeout=5)
+            response = requests.post(f'{BASE_URL}/api/config', json=test_config, timeout=5)
             assert response.status_code == 200
 
-            response = requests.post('http://localhost:5000/api/job/run', timeout=5)
+            response = requests.post(f'{BASE_URL}/api/job/run', timeout=5)
             assert response.status_code == 200
 
             # Wait for completion
             for _ in range(180):
                 time.sleep(1)
-                response = requests.get('http://localhost:5000/api/job/status', timeout=5)
+                response = requests.get(f'{BASE_URL}/api/job/status', timeout=5)
                 status = response.json()['status']
 
                 if status['status'] in ['completed', 'failed', 'cancelled']:
                     break
 
             # Verify mixed catalog limits
-            final_response = requests.get('http://localhost:5000/api/job/status', timeout=5)
+            final_response = requests.get(f'{BASE_URL}/api/job/status', timeout=5)
             final_status = final_response.json()['status']
 
             if 'summary' in final_status:
@@ -358,11 +364,11 @@ class TestMultipleCatalogTypes:
             test_config['episodes_per_catalog'] = -1
             test_config['delay'] = 0
 
-            response = requests.post('http://localhost:5000/api/config', json=test_config, timeout=5)
+            response = requests.post(f'{BASE_URL}/api/config', json=test_config, timeout=5)
             assert response.status_code == 200
 
             # Verify config was saved with -1 values
-            response = requests.get('http://localhost:5000/api/config', timeout=5)
+            response = requests.get(f'{BASE_URL}/api/config', timeout=5)
             loaded_config = response.json()['config']
 
             assert loaded_config['movies_global_limit'] == -1
