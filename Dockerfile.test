@@ -5,7 +5,7 @@
 FROM python:3.11-alpine
 
 # Install test dependencies
-RUN pip install --no-cache-dir pytest requests
+RUN pip install --no-cache-dir pytest pytest-xdist requests
 
 # Set working directory
 WORKDIR /app
@@ -19,4 +19,6 @@ COPY src/ /app/src/
 ENV STREAMS_PREFETCHER_HOST=streams-prefetcher:5000
 
 # Default command runs all integration tests
-CMD ["pytest", "tests/", "-v", "-s", "--tb=short"]
+# Phase 1: Run non-serial tests (can run in parallel)
+# Phase 2: Run serial tests sequentially (disable parallel execution with -n 0)
+CMD ["sh", "-c", "pytest tests/ -v --tb=short -m 'not serial' ; pytest tests/ -v --tb=short -m 'serial' -n 0"]

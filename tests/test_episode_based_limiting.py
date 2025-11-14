@@ -14,11 +14,12 @@ import os
 BASE_URL = f"http://{os.getenv('STREAMS_PREFETCHER_HOST', 'localhost:5000')}"
 
 
+@pytest.mark.serial
 class TestEpisodeBasedLimiting:
     """Test episode-based limiting functionality."""
 
     @pytest.fixture(autouse=True)
-    def setup_and_teardown(self):
+    def setup_and_teardown(self, ensure_job_idle):
         """Setup and teardown for each test."""
         try:
             # Backup original config
@@ -301,11 +302,12 @@ class TestEpisodeBasedLimiting:
             pytest.skip("Container not running - integration test skipped")
 
 
+@pytest.mark.serial
 class TestMultipleCatalogTypes:
     """Test behavior with multiple catalog types."""
 
     @pytest.fixture(autouse=True)
-    def setup_and_teardown(self):
+    def setup_and_teardown(self, ensure_job_idle):
         """Setup and teardown for each test."""
         try:
             response = requests.get(f'{BASE_URL}/api/config', timeout=5)

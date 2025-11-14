@@ -15,6 +15,7 @@ from unittest.mock import Mock, patch, MagicMock
 BASE_URL = f"http://{os.getenv('STREAMS_PREFETCHER_HOST', 'localhost:5000')}"
 
 
+@pytest.mark.serial
 class TestEndToEndWorkflow:
     """Test complete end-to-end workflows."""
 
@@ -138,6 +139,7 @@ class TestEndToEndWorkflow:
             assert 'Prefetching streams' in title
 
 
+@pytest.mark.serial
 class TestErrorHandlingIntegration:
     """Test error handling in integrated scenarios."""
 
@@ -187,6 +189,7 @@ class TestErrorHandlingIntegration:
             pytest.skip("Container not running - integration test skipped")
 
 
+@pytest.mark.serial
 class TestPersistenceIntegration:
     """Test data persistence across operations."""
 
