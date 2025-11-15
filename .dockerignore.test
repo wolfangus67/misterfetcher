@@ -1,0 +1,53 @@
+# .dockerignore for test container build
+# This file allows tests/ directory to be included in test container
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+README.md
+LICENSE
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data directories (runtime data not needed for tests)
+data/
+
+# Runner script
+runner/
+
+# Docker files
+Dockerfile
+Dockerfile.test
+.dockerignore
+.dockerignore.test
+docker-compose.yml
+compose.yaml
+
+# Web files (not needed for tests)
+web/

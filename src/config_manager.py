@@ -18,10 +18,10 @@ class ConfigManager:
     DEFAULT_CONFIG = {
         'addon_urls': [],  # List of {'url': 'https://...', 'type': 'catalog'|'stream'|'both'}
         'movies_global_limit': -1,
-        'series_global_limit': -1,
+        'episodes_global_limit': -1,
         'movies_per_catalog': 50,
-        'series_per_catalog': 3,
-        'items_per_mixed_catalog': 20,
+        'episodes_per_catalog': 50,
+        'episodes_per_mixed_catalog': 20,
         'delay': 2,  # In seconds
         'network_request_timeout': 30,  # In seconds
         'proxy': '',
@@ -67,6 +67,10 @@ class ConfigManager:
                 # Merge with defaults to ensure all keys exist
                 config = self.DEFAULT_CONFIG.copy()
                 config.update(loaded_config)
+
+                # Migrate series-based limits to episode-based limits
+                config = self._migrate_series_to_episode_limits(config)
+
                 return config
             else:
                 return self.DEFAULT_CONFIG.copy()
@@ -144,6 +148,49 @@ class ConfigManager:
 
         return config
 
+    def _migrate_series_to_episode_limits(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Migrate old series-based limits to episode-based limits.
+
+        Conversion ratio: 1:1 (1 episode ≈ 1 movie in terms of prefetching streams)
+        """
+        migrated = False
+
+        # Migrate series_global_limit → episodes_global_limit
+        if 'series_global_limit' in config and 'episodes_global_limit' not in config:
+            old_value = config['series_global_limit']
+            config['episodes_global_limit'] = old_value  # 1:1 ratio
+            del config['series_global_limit']
+            migrated = True
+            logger.info(f"[CONFIG MIGRATION] series_global_limit ({old_value}) → episodes_global_limit ({config['episodes_global_limit']})")
+
+        # Migrate series_per_catalog → episodes_per_catalog
+        if 'series_per_catalog' in config and 'episodes_per_catalog' not in config:
+            old_value = config['series_per_catalog']
+            config['episodes_per_catalog'] = old_value  # 1:1 ratio
+            del config['series_per_catalog']
+            migrated = True
+            logger.info(f"[CONFIG MIGRATION] series_per_catalog ({old_value}) → episodes_per_catalog ({config['episodes_per_catalog']})")
+
+        # Migrate items_per_mixed_catalog → episodes_per_mixed_catalog
+        if 'items_per_mixed_catalog' in config and 'episodes_per_mixed_catalog' not in config:
+            old_value = config['items_per_mixed_catalog']
+            config['episodes_per_mixed_catalog'] = old_value  # Keep same value
+            del config['items_per_mixed_catalog']
+            migrated = True
+            logger.info(f"[CONFIG MIGRATION] items_per_mixed_catalog ({old_value}) → episodes_per_mixed_catalog ({config['episodes_per_mixed_catalog']})")
+
+        if migrated:
+            logger.info("[CONFIG MIGRATION] Configuration migrated from series-based to episode-based limits")
+            # Save migrated config
+            try:
+                with open(self.config_path, 'w') as f:
+                    json.dump(config, f, indent=2)
+                logger.info("[CONFIG MIGRATION] Saved migrated configuration")
+            except Exception as e:
+                logger.error(f"[CONFIG MIGRATION] Failed to save migrated config: {e}")
+
+        return config
+
     def save(self, config: Dict[str, Any] = None) -> bool:
         """Save configuration to disk"""
         try:
@@ -206,7 +253,10 @@ class ConfigManager:
 
     def update(self, updates: Dict[str, Any]) -> bool:
         """Update multiple configuration values and save"""
-        self.config.update(updates)
+        # Migrate old config keys before updating
+        # This ensures backward compatibility when old keys are sent via API
+        migrated_updates = self._migrate_series_to_episode_limits(updates.copy())
+        self.config.update(migrated_updates)
         return self.save()
 
     def get_all(self) -> Dict[str, Any]:
@@ -239,10 +289,10 @@ class ConfigManager:
 
         # Integer limits
         args.extend(['--movies-global-limit', str(self.config['movies_global_limit'])])
-        args.extend(['--series-global-limit', str(self.config['series_global_limit'])])
+        args.extend(['--episodes-global-limit', str(self.config['episodes_global_limit'])])
         args.extend(['--movies-per-catalog', str(self.config['movies_per_catalog'])])
-        args.extend(['--series-per-catalog', str(self.config['series_per_catalog'])])
-        args.extend(['--items-per-mixed-catalog', str(self.config['items_per_mixed_catalog'])])
+        args.extend(['--episodes-per-catalog', str(self.config['episodes_per_catalog'])])
+        args.extend(['--episodes-per-mixed-catalog', str(self.config['episodes_per_mixed_catalog'])])
         args.extend(['--max-movie-items-per-catalog-fetch', str(self.config['max_movie_items_per_catalog_fetch'])])
         args.extend(['--max-series-items-per-catalog-fetch', str(self.config['max_series_items_per_catalog_fetch'])])
         args.extend(['--max-mixed-items-per-catalog-fetch', str(self.config['max_mixed_items_per_catalog_fetch'])])

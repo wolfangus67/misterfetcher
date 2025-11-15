@@ -115,10 +115,10 @@ def validate_limits(config):
 
     limit_fields = [
         ('movies_global_limit', 'Movies Global Limit'),
-        ('series_global_limit', 'Series Global Limit'),
+        ('episodes_global_limit', 'Episodes Global Limit'),
         ('movies_per_catalog', 'Movies per Catalog'),
-        ('series_per_catalog', 'Series per Catalog'),
-        ('items_per_mixed_catalog', 'Items per Mixed Catalog')
+        ('episodes_per_catalog', 'Episodes per Catalog'),
+        ('episodes_per_mixed_catalog', 'Episodes per Mixed Catalog')
     ]
 
     for field, name in limit_fields:
@@ -221,6 +221,9 @@ def update_config():
         data = request.get_json()
         if not data:
             return jsonify({'success': False, 'error': 'No data provided'}), 400
+
+        # Migrate old config keys BEFORE validation
+        data = config_manager._migrate_series_to_episode_limits(data)
 
         # Validate configuration
         validation_errors = validate_configuration(data)

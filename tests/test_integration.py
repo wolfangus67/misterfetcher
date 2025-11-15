@@ -6,9 +6,16 @@ import pytest
 import requests
 import time
 import json
+import os
 from unittest.mock import Mock, patch, MagicMock
 
 
+# Get base URL from environment variable (defaults to localhost:5000 for host testing)
+# Set STREAMS_PREFETCHER_HOST=streams-prefetcher:5000 when running in Docker
+BASE_URL = f"http://{os.getenv('STREAMS_PREFETCHER_HOST', 'localhost:5000')}"
+
+
+@pytest.mark.serial
 class TestEndToEndWorkflow:
     """Test complete end-to-end workflows."""
 
@@ -16,7 +23,7 @@ class TestEndToEndWorkflow:
         """Test health check endpoint is accessible."""
         # This tests that the Flask app is running
         try:
-            response = requests.get('http://localhost:5000/api/health', timeout=5)
+            response = requests.get(f'{BASE_URL}/api/health', timeout=5)
             assert response.status_code == 200
             data = response.json()
             assert data['success'] is True
@@ -29,7 +36,7 @@ class TestEndToEndWorkflow:
         """Test complete configuration lifecycle."""
         try:
             # Get current config
-            response = requests.get('http://localhost:5000/api/config', timeout=5)
+            response = requests.get(f'{BASE_URL}/api/config', timeout=5)
             assert response.status_code == 200
             original_config = response.json()['config']
 
@@ -38,16 +45,16 @@ class TestEndToEndWorkflow:
             test_config['delay'] = test_config.get('delay', 2) + 1
 
             # Save config
-            response = requests.post('http://localhost:5000/api/config', json=test_config, timeout=5)
+            response = requests.post(f'{BASE_URL}/api/config', json=test_config, timeout=5)
             assert response.status_code == 200
 
             # Verify saved
-            response = requests.get('http://localhost:5000/api/config', timeout=5)
+            response = requests.get(f'{BASE_URL}/api/config', timeout=5)
             saved_config = response.json()['config']
             assert saved_config['delay'] == test_config['delay']
 
             # Restore original
-            response = requests.post('http://localhost:5000/api/config', json=original_config, timeout=5)
+            response = requests.post(f'{BASE_URL}/api/config', json=original_config, timeout=5)
             assert response.status_code == 200
 
         except requests.exceptions.ConnectionError:
@@ -57,32 +64,33 @@ class TestEndToEndWorkflow:
         """Test complete job lifecycle: start, monitor, cancel."""
         try:
             # Check initial status
-            response = requests.get('http://localhost:5000/api/job/status', timeout=5)
+            response = requests.get(f'{BASE_URL}/api/job/status', timeout=5)
             assert response.status_code == 200
             initial_status = response.json()['status']
-            assert initial_status['status'] in ['idle', 'cancelled']
+            # Accept any non-running status as valid starting point
+            assert initial_status['status'] in ['idle', 'cancelled', 'completed', 'failed']
 
             # Start job
-            response = requests.post('http://localhost:5000/api/job/run', timeout=5)
+            response = requests.post(f'{BASE_URL}/api/job/run', timeout=5)
             assert response.status_code == 200
 
             # Give it a moment to start
             time.sleep(2)
 
             # Check running status
-            response = requests.get('http://localhost:5000/api/job/status', timeout=5)
+            response = requests.get(f'{BASE_URL}/api/job/status', timeout=5)
             assert response.status_code == 200
             running_status = response.json()['status']
             assert running_status['status'] in ['running', 'completed', 'failed']
 
             # If running, cancel it
             if running_status['status'] == 'running':
-                response = requests.post('http://localhost:5000/api/job/cancel', timeout=5)
+                response = requests.post(f'{BASE_URL}/api/job/cancel', timeout=5)
                 assert response.status_code == 200
 
                 # Verify cancelled
                 time.sleep(1)
-                response = requests.get('http://localhost:5000/api/job/status', timeout=5)
+                response = requests.get(f'{BASE_URL}/api/job/status', timeout=5)
                 final_status = response.json()['status']
                 assert final_status['status'] == 'cancelled'
 
@@ -93,7 +101,12 @@ class TestEndToEndWorkflow:
     def test_addon_to_item_workflow(self, mock_get, mock_manifest):
         """Test workflow from addon loading to item processing."""
         # This tests the integration between Addon and Item classes
-        from web_app import load_catalogs
+        try:
+            from web_app import load_catalogs
+        except ModuleNotFoundError as e:
+            if 'flask' in str(e).lower():
+                pytest.skip("Flask not installed - skipping web_app test")
+            raise
         from item import Item
 
         # Mock addon manifest
@@ -127,6 +140,7 @@ class TestEndToEndWorkflow:
             assert 'Prefetching streams' in title
 
 
+@pytest.mark.serial
 class TestErrorHandlingIntegration:
     """Test error handling in integrated scenarios."""
 
@@ -139,7 +153,7 @@ class TestErrorHandlingIntegration:
                 'delay': 2
             }
 
-            response = requests.post('http://localhost:5000/api/config', json=incomplete_config, timeout=5)
+            response = requests.post(f'{BASE_URL}/api/config', json=incomplete_config, timeout=5)
             assert response.status_code == 400  # Should return validation error
 
             error_data = response.json()
@@ -153,7 +167,7 @@ class TestErrorHandlingIntegration:
         """Test job execution when no catalogs are selected."""
         try:
             # Get current config
-            response = requests.get('http://localhost:5000/api/config', timeout=5)
+            response = requests.get(f'{BASE_URL}/api/config', timeout=5)
             config = response.json()['config']
 
             # Temporarily clear selected catalogs
@@ -161,21 +175,22 @@ class TestErrorHandlingIntegration:
             config_no_catalogs['saved_catalogs'] = []
 
             # Save config with no catalogs
-            response = requests.post('http://localhost:5000/api/config', json=config_no_catalogs, timeout=5)
+            response = requests.post(f'{BASE_URL}/api/config', json=config_no_catalogs, timeout=5)
             assert response.status_code == 200
 
             # Try to run job
-            response = requests.post('http://localhost:5000/api/job/run', timeout=5)
+            response = requests.post(f'{BASE_URL}/api/job/run', timeout=5)
             # Should either succeed with no work or fail gracefully
 
             # Restore original config
-            response = requests.post('http://localhost:5000/api/config', json=config, timeout=5)
+            response = requests.post(f'{BASE_URL}/api/config', json=config, timeout=5)
             assert response.status_code == 200
 
         except requests.exceptions.ConnectionError:
             pytest.skip("Container not running - integration test skipped")
 
 
+@pytest.mark.serial
 class TestPersistenceIntegration:
     """Test data persistence across operations."""
 
@@ -186,7 +201,7 @@ class TestPersistenceIntegration:
             test_delay = int(time.time()) % 10 + 5  # 5-14
 
             # Get current config
-            response = requests.get('http://localhost:5000/api/config', timeout=5)
+            response = requests.get(f'{BASE_URL}/api/config', timeout=5)
             original_config = response.json()['config']
             original_delay = original_config['delay']
 
@@ -195,18 +210,18 @@ class TestPersistenceIntegration:
             test_config['delay'] = test_delay
 
             # Save
-            response = requests.post('http://localhost:5000/api/config', json=test_config, timeout=5)
+            response = requests.post(f'{BASE_URL}/api/config', json=test_config, timeout=5)
             assert response.status_code == 200
 
             # Verify persistence across multiple requests
             for _ in range(3):
-                response = requests.get('http://localhost:5000/api/config', timeout=5)
+                response = requests.get(f'{BASE_URL}/api/config', timeout=5)
                 persisted_config = response.json()['config']
                 assert persisted_config['delay'] == test_delay
                 time.sleep(0.5)
 
             # Restore original
-            response = requests.post('http://localhost:5000/api/config', json=original_config, timeout=5)
+            response = requests.post(f'{BASE_URL}/api/config', json=original_config, timeout=5)
             assert response.status_code == 200
 
         except requests.exceptions.ConnectionError:
@@ -218,7 +233,7 @@ class TestPersistenceIntegration:
             # Check status multiple times
             statuses = []
             for _ in range(3):
-                response = requests.get('http://localhost:5000/api/job/status', timeout=5)
+                response = requests.get(f'{BASE_URL}/api/job/status', timeout=5)
                 assert response.status_code == 200
                 status = response.json()['status']['status']
                 statuses.append(status)
@@ -248,7 +263,7 @@ class TestPerformanceIntegration:
 
             def make_request():
                 try:
-                    response = requests.get('http://localhost:5000/api/health', timeout=5)
+                    response = requests.get(f'{BASE_URL}/api/health', timeout=5)
                     results.put(response.status_code)
                 except Exception as e:
                     results.put(e)
@@ -266,10 +281,17 @@ class TestPerformanceIntegration:
 
             # Check results
             success_count = 0
+            has_connection_error = False
             while not results.empty():
                 result = results.get()
                 if isinstance(result, int) and result == 200:
                     success_count += 1
+                elif isinstance(result, requests.exceptions.ConnectionError):
+                    has_connection_error = True
+
+            # Skip if container not accessible
+            if has_connection_error and success_count == 0:
+                pytest.skip("Container not accessible on localhost:5000 - integration test skipped")
 
             # At least 3 should succeed
             assert success_count >= 3
@@ -282,7 +304,7 @@ class TestPerformanceIntegration:
         try:
             # Test health endpoint response time
             start_time = time.time()
-            response = requests.get('http://localhost:5000/api/health', timeout=5)
+            response = requests.get(f'{BASE_URL}/api/health', timeout=5)
             response_time = time.time() - start_time
 
             assert response.status_code == 200
@@ -290,7 +312,7 @@ class TestPerformanceIntegration:
 
             # Test config endpoint response time
             start_time = time.time()
-            response = requests.get('http://localhost:5000/api/config', timeout=5)
+            response = requests.get(f'{BASE_URL}/api/config', timeout=5)
             response_time = time.time() - start_time
 
             assert response.status_code == 200
@@ -307,7 +329,7 @@ class TestSSEIntegration:
         """Test that SSE endpoint is accessible."""
         try:
             # SSE endpoint should accept connections
-            response = requests.get('http://localhost:5000/api/events', timeout=2, stream=True)
+            response = requests.get(f'{BASE_URL}/api/events', timeout=2, stream=True)
             assert response.status_code == 200
 
             # Check for SSE content type

@@ -36,3 +36,16 @@ services:
       - stremio
       - all
       - deejay
+
+  streams-prefetcher-tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: streams-prefetcher-tests
+    depends_on:
+      streams-prefetcher:
+        condition: service_healthy
+    environment:
+      - STREAMS_PREFETCHER_HOST=streams-prefetcher:5000
+    profiles:
+      - test
