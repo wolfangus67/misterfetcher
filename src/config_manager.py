@@ -253,7 +253,10 @@ class ConfigManager:
 
     def update(self, updates: Dict[str, Any]) -> bool:
         """Update multiple configuration values and save"""
-        self.config.update(updates)
+        # Migrate old config keys before updating
+        # This ensures backward compatibility when old keys are sent via API
+        migrated_updates = self._migrate_series_to_episode_limits(updates.copy())
+        self.config.update(migrated_updates)
         return self.save()
 
     def get_all(self) -> Dict[str, Any]:

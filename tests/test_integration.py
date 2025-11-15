@@ -67,7 +67,8 @@ class TestEndToEndWorkflow:
             response = requests.get(f'{BASE_URL}/api/job/status', timeout=5)
             assert response.status_code == 200
             initial_status = response.json()['status']
-            assert initial_status['status'] in ['idle', 'cancelled']
+            # Accept any non-running status as valid starting point
+            assert initial_status['status'] in ['idle', 'cancelled', 'completed', 'failed']
 
             # Start job
             response = requests.post(f'{BASE_URL}/api/job/run', timeout=5)

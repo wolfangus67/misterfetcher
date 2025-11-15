@@ -162,8 +162,8 @@ class TestEpisodeBasedLimiting:
             # but we can verify the format through the progress tracking
 
             test_config = self.original_config.copy()
-            test_config['episodes_global_limit'] = 5
-            test_config['delay'] = 0
+            test_config['episodes_global_limit'] = 10
+            test_config['delay'] = 1  # Slow down processing so test can observe episodes
 
             response = requests.post(f'{BASE_URL}/api/config', json=test_config, timeout=5)
             assert response.status_code == 200
