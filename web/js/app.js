@@ -30,6 +30,7 @@ let jobTerminationRequested = false; // Track if user requested termination
 let currentPosterLoadingId = null; // Track which poster is currently being loaded to cancel stale updates
 let posterFadeTimeout = null; // Track fade animation timeout for cancellation
 let activePosterIndex = 1; // Track which poster element is currently active (1 or 2) for crossfade
+let catalogTypeFilter = localStorage.getItem('catalog-type-filter') || 'all';
 
 // ============================================================================
 // Debug Logging (Mobile-Friendly)
@@ -1724,6 +1725,10 @@ function normalizeAddonUrl(url) {
 
     let normalized = url.trim();
 
+    // Drop query string and fragment first so endpoint checks work for URLs like
+    // ".../manifest.json?bcv=476"
+    normalized = normalized.split('#')[0].split('?')[0];
+
     // Remove trailing slash
     normalized = normalized.replace(/\/$/, '');
 
@@ -2609,8 +2614,10 @@ async function loadSavedCatalogSelection() {
             addDebugLog(`[CATALOG LOAD SAVED] Enabled catalogs: ${enabledCount}`);
 
             loadedCatalogs = data.catalogs;
+            applyCatalogTypeFilterUI();
             renderCatalogList(data.catalogs);
             document.getElementById('catalog-list-container').style.display = 'block';
+            document.getElementById('catalog-type-filter').style.display = 'flex';
             document.getElementById('select-all-btn').style.display = 'block';
             document.getElementById('deselect-all-btn').style.display = 'block';
             catalogsLoaded = true;
@@ -2697,8 +2704,10 @@ async function loadCatalogs(silent = false) {
             addDebugLog(`[CATALOG MERGE] Final merged count: ${mergedCatalogs.length}, enabled: ${mergedCatalogs.filter(c => c.enabled).length}`);
 
             loadedCatalogs = mergedCatalogs;
+            applyCatalogTypeFilterUI();
             renderCatalogList(loadedCatalogs);
             document.getElementById('catalog-list-container').style.display = 'block';
+            document.getElementById('catalog-type-filter').style.display = 'flex';
             document.getElementById('select-all-btn').style.display = 'block';
             document.getElementById('deselect-all-btn').style.display = 'block';
             catalogsLoaded = true;
@@ -2742,11 +2751,42 @@ function updateLoadCatalogsButtonText() {
     btn.textContent = catalogsLoaded ? 'Reload Catalogs' : 'Load Catalogs';
 }
 
+function getFilteredCatalogs(catalogs) {
+    if (catalogTypeFilter === 'movie' || catalogTypeFilter === 'series') {
+        return catalogs.filter(catalog => (catalog.type || '').toLowerCase() === catalogTypeFilter);
+    }
+    return catalogs;
+}
+
+function applyCatalogTypeFilterUI() {
+    const buttons = {
+        all: document.getElementById('catalog-filter-all-btn'),
+        movie: document.getElementById('catalog-filter-movie-btn'),
+        series: document.getElementById('catalog-filter-series-btn')
+    };
+
+    Object.entries(buttons).forEach(([filter, button]) => {
+        if (!button) return;
+        button.classList.toggle('active', filter === catalogTypeFilter);
+    });
+
+    localStorage.setItem('catalog-type-filter', catalogTypeFilter);
+}
+
+function setCatalogTypeFilter(filter) {
+    catalogTypeFilter = filter || 'all';
+    applyCatalogTypeFilterUI();
+    renderCatalogList(loadedCatalogs);
+    addDebugLog(`[CATALOG FILTER] Showing ${catalogTypeFilter}`);
+}
+
 function renderCatalogList(catalogs) {
     const container = document.getElementById('catalog-list');
     container.innerHTML = '';
 
-    catalogs.forEach((catalog, index) => {
+    const filteredCatalogs = getFilteredCatalogs(catalogs);
+
+    filteredCatalogs.forEach((catalog, index) => {
         const div = document.createElement('div');
         div.className = 'catalog-item';
         div.draggable = true;
@@ -2773,6 +2813,12 @@ function renderCatalogList(catalogs) {
         setupCatalogDragDrop(div);
         container.appendChild(div);
     });
+
+    const statusEl = document.getElementById('catalog-filter-status');
+    if (statusEl) {
+        const label = catalogTypeFilter === 'all' ? 'all' : `${catalogTypeFilter}s`;
+        statusEl.textContent = `${filteredCatalogs.length} ${label} shown`;
+    }
 }
 
 function toggleCatalog(catalogId, enabled) {
@@ -2788,8 +2834,9 @@ function toggleCatalog(catalogId, enabled) {
 }
 
 function selectAllCatalogs() {
-    addDebugLog(`[CATALOG SELECT ALL] Enabling all ${loadedCatalogs.length} catalogs`);
-    loadedCatalogs.forEach(catalog => {
+    const targetCatalogs = getFilteredCatalogs(loadedCatalogs);
+    addDebugLog(`[CATALOG SELECT ALL] Enabling ${targetCatalogs.length} visible catalogs (${catalogTypeFilter})`);
+    targetCatalogs.forEach(catalog => {
         catalog.enabled = true;
     });
     renderCatalogList(loadedCatalogs);
@@ -2798,8 +2845,9 @@ function selectAllCatalogs() {
 }
 
 function deselectAllCatalogs() {
-    addDebugLog(`[CATALOG DESELECT ALL] Disabling all ${loadedCatalogs.length} catalogs`);
-    loadedCatalogs.forEach(catalog => {
+    const targetCatalogs = getFilteredCatalogs(loadedCatalogs);
+    addDebugLog(`[CATALOG DESELECT ALL] Disabling ${targetCatalogs.length} visible catalogs (${catalogTypeFilter})`);
+    targetCatalogs.forEach(catalog => {
         catalog.enabled = false;
     });
     renderCatalogList(loadedCatalogs);

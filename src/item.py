@@ -8,6 +8,8 @@ from typing import Optional, Dict, Any
 class Item:
     """Data class representing a movie, series, or episode for prefetching"""
 
+    SUPPORTED_ID_PREFIXES = ("tt", "tmdb:", "tvdb:")
+
     def __init__(self, imdb_id: str, title: str, item_type: str, year: Optional[str] = None,
                  season: Optional[int] = None, episode: Optional[int] = None,
                  series_imdb_id: Optional[str] = None):
@@ -99,8 +101,13 @@ class Item:
         imdb_id = None
         for key in ['imdb_id', 'id']:
             item_id = item.get(key)
-            if item_id and isinstance(item_id, str) and item_id.startswith('tt'):
-                imdb_id = item_id
+            if not item_id or not isinstance(item_id, str):
+                continue
+            candidate = item_id.strip()
+            if not candidate:
+                continue
+            if candidate.startswith(Item.SUPPORTED_ID_PREFIXES):
+                imdb_id = candidate
                 break
 
         if not imdb_id:

@@ -814,6 +814,47 @@ input:disabled {
     font-size: 18px;
 }
 
+.catalog-type-filter {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+.catalog-type-filter-label {
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.catalog-type-filter-btn {
+    border: 1px solid var(--border-color);
+    background: var(--input-bg);
+    color: var(--text-color);
+    border-radius: 6px;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    min-height: 38px;
+}
+
+.catalog-type-filter-btn:hover {
+    border-color: var(--primary-color);
+}
+
+.catalog-type-filter-btn.active {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: #fff;
+}
+
+.catalog-type-filter-status {
+    color: var(--text-muted);
+    font-size: 12px;
+    margin-left: auto;
+}
+
 /* Status Boxes */
 .status-box {
     padding: 20px;

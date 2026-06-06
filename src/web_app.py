@@ -357,6 +357,10 @@ def load_catalogs():
                             'type': cat_type,
                             'addon_name': addon_name,
                             'addon_url': addon.url,
+                            'extra': catalog.get('extra', []),
+                            'pageSize': catalog.get('pageSize', 100),
+                            'showInHome': catalog.get('showInHome', False),
+                            'isSearch': catalog.get('isSearch', False),
                             'enabled': True,  # Default enabled
                             'order': len(catalogs)
                         })
@@ -379,11 +383,70 @@ def load_catalogs():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+def _get_current_catalog_ids_for_addons(addon_urls):
+    """Fetch current catalog IDs from configured catalog addons."""
+    current_ids = set()
+    if not addon_urls:
+        return current_ids
+
+    from addon import addon_list_from_config
+    addons = addon_list_from_config(addon_urls)
+
+    for addon in addons:
+        if addon.type not in ['catalog', 'both']:
+            continue
+
+        try:
+            response = requests.get(
+                f"{addon.url}/manifest.json",
+                timeout=10,
+                headers={
+                    'User-Agent': 'Streams Prefetcher/1.0',
+                    'Accept': 'application/json'
+                }
+            )
+            response.raise_for_status()
+            manifest = response.json()
+
+            for catalog in manifest.get('catalogs', []):
+                extras = catalog.get('extra', [])
+                is_search_only = (
+                    len(extras) == 1 and
+                    extras[0].get('name') == 'search'
+                )
+                if is_search_only:
+                    continue
+
+                cat_type = catalog.get('type', '').lower()
+                if cat_type in ['tv', 'channel']:
+                    continue
+                if cat_type == 'all':
+                    cat_type = 'mixed'
+
+                current_ids.add(create_catalog_id(addon.url, catalog.get('id', ''), cat_type))
+
+        except Exception as e:
+            logger.warning(f"Failed to refresh catalogs for pruning from {addon.url}: {e}")
+
+    return current_ids
+
+
 @app.route('/api/catalogs/selection', methods=['GET'])
 def get_catalog_selection():
     """Get saved catalog selection"""
     try:
         saved_catalogs = config_manager.get('saved_catalogs', [])
+        addon_urls = config_manager.get('addon_urls', [])
+        current_catalog_ids = _get_current_catalog_ids_for_addons(addon_urls)
+
+        if current_catalog_ids:
+            pruned_catalogs = [cat for cat in saved_catalogs if cat.get('id') in current_catalog_ids]
+            removed_count = len(saved_catalogs) - len(pruned_catalogs)
+            if removed_count > 0:
+                logger.info(f"Pruned {removed_count} stale saved catalogs that no longer exist in the addon manifests")
+                config_manager.set('saved_catalogs', pruned_catalogs)
+                saved_catalogs = pruned_catalogs
+
         return jsonify({'success': True, 'catalogs': saved_catalogs})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -458,7 +521,11 @@ def fetch_addon_manifest():
         if not data or 'url' not in data:
             return jsonify({'success': False, 'error': 'No URL provided'}), 400
 
-        addon_url = data['url'].rstrip('/')
+        addon_url = data['url'].split('#')[0].split('?')[0].rstrip('/')
+
+        if addon_url.endswith('/manifest.json'):
+            addon_url = addon_url[:-len('/manifest.json')]
+        addon_url = addon_url.rstrip('/')
 
         try:
             # Fetch manifest

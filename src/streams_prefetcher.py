@@ -18,7 +18,7 @@ import sqlite3
 import os
 import re
 from datetime import datetime, timezone
-from urllib.parse import urljoin, quote
+from urllib.parse import urljoin, quote, urlencode
 from typing import List, Dict, Any, Optional, Tuple
 from logger import get_logger
 from item import Item
@@ -1025,6 +1025,47 @@ class StreamsPrefetcher:
         return [{'id': f"{series_imdb_id}:{v['season']}:{v['episode']}", 'season': v['season'], 'episode': v['episode']}
                 for v in videos if 'season' in v and 'episode' in v]
 
+    def _get_catalog_page_size(self, catalog_info: Dict[str, Any]) -> int:
+        """Return the catalog page size, falling back to 100 when missing or invalid."""
+        try:
+            page_size = int(catalog_info.get('pageSize', 100))
+            return page_size if page_size > 0 else 100
+        except (TypeError, ValueError):
+            return 100
+
+    def _build_catalog_page_url(self, catalog_addon_url: str, catalog_info: Dict[str, Any], page: int) -> Tuple[str, int, Dict[str, str]]:
+        """
+        Build the catalog URL for a specific page.
+
+        Bingecat catalogs may include optional or defaulted extras such as genre.
+        We keep skip in the path for compatibility with the current engine and append
+        any manifest defaults as query parameters.
+        """
+        catalog_type = catalog_info.get('type', 'movie')
+        catalog_id = catalog_info.get('id', '')
+        page_size = self._get_catalog_page_size(catalog_info)
+        skip = (page - 1) * page_size
+
+        encoded_catalog_id = quote(catalog_id, safe='')
+        url = f"{catalog_addon_url}/catalog/{catalog_type}/{encoded_catalog_id}/skip={skip}.json"
+
+        query_params: Dict[str, str] = {}
+        for extra in catalog_info.get('extra', []) or []:
+            extra_name = extra.get('name')
+            if not extra_name or extra_name == 'skip':
+                continue
+
+            default_value = extra.get('default')
+            if default_value is None or default_value == '':
+                continue
+
+            query_params[extra_name] = str(default_value)
+
+        if query_params:
+            url += "?" + urlencode(query_params)
+
+        return url, page_size, query_params
+
     def prefetch_streams(self, item: Item) -> bool:
         """Prefetch streams for a given Item (movie, series, or episode)"""
         content_id = item.get_content_id()
@@ -1481,9 +1522,12 @@ class StreamsPrefetcher:
                     max_execution_time=self.max_execution_time
                 )
 
-                cat_url = f"{cat_addon_url}/catalog/{cat_info.get('type', 'movie')}/{cat_id}/skip={(page-1) * 100}.json"
+                cat_url, page_size, query_params = self._build_catalog_page_url(cat_addon_url, cat_info, page)
                 logger.debug(f"📄 FETCHING PAGE {page} from catalog '{cat_name}'")
                 logger.debug(f"   • URL: {cat_url}")
+                logger.debug(f"   • Page size: {page_size}")
+                if query_params:
+                    logger.debug(f"   • Query params: {query_params}")
 
                 cat_data = self.make_request(cat_url)
                 self.results['statistics']['total_pages_fetched'] += 1
@@ -1493,6 +1537,9 @@ class StreamsPrefetcher:
                 page_duration = time.perf_counter() - page_start_time
                 if not metas:
                     logger.debug(f"   ✅ Page {page} is empty (no more items)")
+                    if cat_data:
+                        logger.debug(f"   • Raw response keys: {list(cat_data.keys())}")
+                        logger.debug(f"   • Raw response preview: metas={'present' if 'metas' in cat_data else 'missing'}, has_meta={'meta' in cat_data}")
                     break
                 else:
                     logger.debug(f"   ✅ Fetched {len(metas)} items in {page_duration:.2f}s")

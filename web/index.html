@@ -632,6 +632,14 @@ Default: <strong>Disabled</strong>"><svg viewBox="0 0 24 24" fill="none" stroke=
                 </button>
             </div>
 
+            <div class="catalog-type-filter" id="catalog-type-filter" style="display: none;">
+                <span class="catalog-type-filter-label">Show:</span>
+                <button type="button" class="catalog-type-filter-btn active" id="catalog-filter-all-btn" onclick="setCatalogTypeFilter('all')">All</button>
+                <button type="button" class="catalog-type-filter-btn" id="catalog-filter-movie-btn" onclick="setCatalogTypeFilter('movie')">Movies</button>
+                <button type="button" class="catalog-type-filter-btn" id="catalog-filter-series-btn" onclick="setCatalogTypeFilter('series')">Series</button>
+                <span class="catalog-type-filter-status" id="catalog-filter-status"></span>
+            </div>
+
             <div id="catalog-list-container" style="display: none; margin-top: 20px;">
                 <div id="catalog-list" class="catalog-list"></div>
                 <p style="margin-top: 15px; font-size: 13px; color: var(--text-muted); text-align: center;">
