@@ -1,51 +1,43 @@
 services:
-  streams-prefetcher:
+  misterfetcher:
     build:
-      context: .
+      context: https://github.com/wolfangus67/misterfetcher.git#main
       dockerfile: Dockerfile
-    container_name: streams-prefetcher
+    container_name: misterfetcher
+    platform: linux/arm64
     restart: unless-stopped
-    expose:
-      - 5000
-    env_file:
-      - .env
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.streams-prefetcher.rule=Host(`${STREAMS_PREFETCHER_HOSTNAME?}`)"
-      - "traefik.http.routers.streams-prefetcher.entrypoints=websecure"
-      - "traefik.http.routers.streams-prefetcher.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.streams-prefetcher.middlewares=authelia@docker"
+
+    ports:
+      - "5000:5000"
+
+    environment:
+      TZ: Europe/Paris
+      LOG_LEVEL: INFO
+      LOG_FORMAT: json
+      DOCKER_DATA_DIR: /app/data
+
     volumes:
-      - ${DOCKER_DATA_DIR}/streams-prefetcher:/app/data
+      - misterfetcher-data:/app/data
+
+    networks:
+      - webnet
+
     healthcheck:
-      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5000/api/health', timeout=5)"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import requests; requests.get('http://localhost:5000/api/health', timeout=5)",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 1G
-        reservations:
-          cpus: '0.25'
-          memory: 256M
-    profiles:
-      - streams-prefetcher
-      - stremio
-      - all
-      - deejay
 
-  streams-prefetcher-tests:
-    build:
-      context: .
-      dockerfile: Dockerfile.test
-    container_name: streams-prefetcher-tests
-    depends_on:
-      streams-prefetcher:
-        condition: service_healthy
-    environment:
-      - STREAMS_PREFETCHER_HOST=streams-prefetcher:5000
-    profiles:
-      - test
+networks:
+  webnet:
+    external: true
+
+volumes:
+  misterfetcher-data:

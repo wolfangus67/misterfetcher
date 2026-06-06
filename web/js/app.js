@@ -31,6 +31,8 @@ let currentPosterLoadingId = null; // Track which poster is currently being load
 let posterFadeTimeout = null; // Track fade animation timeout for cancellation
 let activePosterIndex = 1; // Track which poster element is currently active (1 or 2) for crossfade
 let catalogTypeFilter = localStorage.getItem('catalog-type-filter') || 'all';
+let catalogHomeOnlyFilter = localStorage.getItem('catalog-home-only-filter') === 'true';
+let lastCatalogCheckboxIndex = null;
 
 // ============================================================================
 // Debug Logging (Mobile-Friendly)
@@ -2752,30 +2754,46 @@ function updateLoadCatalogsButtonText() {
 }
 
 function getFilteredCatalogs(catalogs) {
-    if (catalogTypeFilter === 'movie' || catalogTypeFilter === 'series') {
-        return catalogs.filter(catalog => (catalog.type || '').toLowerCase() === catalogTypeFilter);
-    }
-    return catalogs;
+    return catalogs.filter(catalog => {
+        const matchesType = catalogTypeFilter === 'all' || (catalog.type || '').toLowerCase() === catalogTypeFilter;
+        const matchesHome = !catalogHomeOnlyFilter || catalog.showInHome === true;
+        return matchesType && matchesHome;
+    });
 }
 
 function applyCatalogTypeFilterUI() {
     const buttons = {
         all: document.getElementById('catalog-filter-all-btn'),
         movie: document.getElementById('catalog-filter-movie-btn'),
-        series: document.getElementById('catalog-filter-series-btn')
+        series: document.getElementById('catalog-filter-series-btn'),
+        home: document.getElementById('catalog-filter-home-btn')
     };
 
     Object.entries(buttons).forEach(([filter, button]) => {
         if (!button) return;
-        button.classList.toggle('active', filter === catalogTypeFilter);
+        if (filter === 'home') {
+            button.classList.toggle('active', catalogHomeOnlyFilter);
+        } else {
+            button.classList.toggle('active', filter === catalogTypeFilter);
+        }
     });
 
     localStorage.setItem('catalog-type-filter', catalogTypeFilter);
+    localStorage.setItem('catalog-home-only-filter', catalogHomeOnlyFilter ? 'true' : 'false');
+}
+
+function setCatalogHomeOnlyFilter(enabled) {
+    catalogHomeOnlyFilter = !!enabled;
+    applyCatalogTypeFilterUI();
+    lastCatalogCheckboxIndex = null;
+    renderCatalogList(loadedCatalogs);
+    addDebugLog(`[CATALOG FILTER] Home only ${catalogHomeOnlyFilter ? 'enabled' : 'disabled'}`);
 }
 
 function setCatalogTypeFilter(filter) {
     catalogTypeFilter = filter || 'all';
     applyCatalogTypeFilterUI();
+    lastCatalogCheckboxIndex = null;
     renderCatalogList(loadedCatalogs);
     addDebugLog(`[CATALOG FILTER] Showing ${catalogTypeFilter}`);
 }
@@ -2803,7 +2821,7 @@ function renderCatalogList(catalogs) {
 
         div.innerHTML = `
             <span class="drag-handle">⋮⋮</span>
-            <input type="checkbox" ${catalog.enabled ? 'checked' : ''} onchange="toggleCatalog('${catalog.id}', this.checked)">
+            <input type="checkbox" ${catalog.enabled ? 'checked' : ''} onclick="handleCatalogCheckboxClick(event, '${catalog.id}')">
             <div class="catalog-info">
                 <div class="catalog-name">${catalog.name} <span class="item-type-badge ${catalog.type}">${typeCapitalized}</span></div>
                 ${addonBadge ? '<div class="catalog-meta">' + addonBadge + '</div>' : ''}
@@ -2817,8 +2835,36 @@ function renderCatalogList(catalogs) {
     const statusEl = document.getElementById('catalog-filter-status');
     if (statusEl) {
         const label = catalogTypeFilter === 'all' ? 'all' : `${catalogTypeFilter}s`;
-        statusEl.textContent = `${filteredCatalogs.length} ${label} shown`;
+        const homeLabel = catalogHomeOnlyFilter ? 'home only' : 'all home flags';
+        statusEl.textContent = `${filteredCatalogs.length} ${label} shown • ${homeLabel}`;
     }
+}
+
+function handleCatalogCheckboxClick(event, catalogId) {
+    const filteredCatalogs = getFilteredCatalogs(loadedCatalogs);
+    const currentIndex = filteredCatalogs.findIndex(c => c.id === catalogId);
+    const enabled = event.target.checked;
+
+    if (event.shiftKey && lastCatalogCheckboxIndex !== null && currentIndex !== -1) {
+        const start = Math.min(lastCatalogCheckboxIndex, currentIndex);
+        const end = Math.max(lastCatalogCheckboxIndex, currentIndex);
+        const targetCatalogs = filteredCatalogs.slice(start, end + 1);
+
+        addDebugLog(`[CATALOG TOGGLE] Shift-select ${start + 1}-${end + 1} => ${enabled ? 'ENABLED' : 'DISABLED'} (${targetCatalogs.length} catalogs)`);
+
+        targetCatalogs.forEach(catalog => {
+            catalog.enabled = enabled;
+        });
+
+        lastCatalogCheckboxIndex = currentIndex;
+        renderCatalogList(loadedCatalogs);
+        updateStartNowButtonState();
+        autoSaveCatalogSelection();
+        return;
+    }
+
+    toggleCatalog(catalogId, enabled);
+    lastCatalogCheckboxIndex = currentIndex;
 }
 
 function toggleCatalog(catalogId, enabled) {
@@ -4962,3 +5008,4 @@ async function deleteAllLogs() {
         alert(`Error: ${error.message}`);
     }
 }
+

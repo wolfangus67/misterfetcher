@@ -849,6 +849,12 @@ input:disabled {
     color: #fff;
 }
 
+#catalog-filter-home-btn.active {
+    background: #22c55e;
+    border-color: #22c55e;
+    color: #fff;
+}
+
 .catalog-type-filter-status {
     color: var(--text-muted);
     font-size: 12px;
