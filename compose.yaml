@@ -4,7 +4,7 @@ services:
       context: .  # <-- On utilise le dossier local actuel au lieu de retélécharger depuis GitHub
       dockerfile: Dockerfile
     container_name: misterfetcher
-    # platform: linux/arm64 # <-- Commenté pour tourner sur ton PC Windows local
+     platform: linux/arm64 # <-- Commenté pour tourner sur ton PC Windows local
     restart: unless-stopped
 
     ports:
