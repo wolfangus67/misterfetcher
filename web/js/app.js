@@ -33,6 +33,7 @@ let posterFadeTimeout = null; // Track fade animation timeout for cancellation
 let activePosterIndex = 1; // Track which poster element is currently active (1 or 2) for crossfade
 let catalogTypeFilter = localStorage.getItem('catalog-type-filter') || 'all';
 let catalogHomeOnlyFilter = localStorage.getItem('catalog-home-only-filter') === 'true';
+let catalogSearchQuery = localStorage.getItem('catalog-search-query') || '';
 let lastCatalogCheckboxIndex = null;
 
 // ============================================================================
@@ -164,6 +165,8 @@ function updateAuthUI() {
     const sessionBar = document.getElementById('session-bar');
     const appContainer = document.getElementById('app-container');
     const sessionLabel = document.getElementById('session-user-label');
+    const sidebarAccountName = document.getElementById('sidebar-account-name');
+    const sidebarAvatar = document.getElementById('sidebar-avatar');
     const isAuthenticated = !!currentUser;
 
     if (authCard) authCard.style.display = isAuthenticated ? 'none' : 'block';
@@ -172,6 +175,105 @@ function updateAuthUI() {
     if (sessionLabel) {
         sessionLabel.textContent = isAuthenticated ? `Logged in as ${currentUser.username}` : '';
     }
+    if (sidebarAccountName) {
+        sidebarAccountName.textContent = isAuthenticated ? currentUser.username : 'guest';
+    }
+    if (sidebarAvatar) {
+        const initials = isAuthenticated
+            ? currentUser.username.slice(0, 2).toUpperCase()
+            : 'MF';
+        sidebarAvatar.textContent = initials;
+    }
+}
+
+function switchWorkspaceView(view) {
+    const panels = document.querySelectorAll('.workspace-panel');
+    const navItems = document.querySelectorAll('.workspace-nav-item');
+    const main = document.querySelector('.workspace-main');
+
+    panels.forEach(panel => {
+        const isCurrentView = panel.dataset.view === view;
+        panel.style.display = isCurrentView ? '' : 'none';
+
+        if (isCurrentView) {
+            const directContent = Array.from(panel.children).find(child => child.classList.contains('collapsible-content'));
+            const collapseIcon = panel.querySelector('.section-header-collapsible .collapse-icon');
+            directContent?.classList.remove('collapsed');
+            collapseIcon?.classList.remove('collapsed');
+            panel.querySelectorAll('.collapsible-content').forEach(content => {
+                content.classList.remove('collapsed');
+            });
+            panel.querySelectorAll('.collapse-icon').forEach(icon => {
+                icon.classList.remove('collapsed');
+            });
+        }
+    });
+
+    navItems.forEach(item => {
+        item.classList.toggle('active', item.dataset.viewTarget === view);
+    });
+
+    if (main) {
+        main.classList.remove('workspace-view-addons', 'workspace-view-catalogs', 'workspace-view-settings', 'workspace-view-schedule', 'workspace-view-run');
+        main.classList.add(`workspace-view-${view}`);
+    }
+}
+
+function updateSidebarAddonHealth() {
+    const catalogTextEl = document.getElementById('sidebar-catalog-text');
+    const catalogLedEl = document.getElementById('sidebar-catalog-led');
+    const catalogActionEl = document.getElementById('sidebar-catalog-action');
+    const selectedCatalogCountEl = document.getElementById('sidebar-selected-catalog-count');
+    const streamLedEl = document.getElementById('sidebar-stream-led');
+    const streamTextEl = document.getElementById('sidebar-stream-text');
+    const streamActionEl = document.getElementById('sidebar-stream-action');
+
+    if (!catalogTextEl || !catalogLedEl || !catalogActionEl || !selectedCatalogCountEl || !streamLedEl || !streamTextEl || !streamActionEl) {
+        return;
+    }
+
+    const bothContainer = document.getElementById('addon-list-both');
+    const catalogContainer = document.getElementById('addon-list-catalog');
+    const streamContainer = document.getElementById('addon-list-stream');
+
+    const countItems = container => (container ? container.querySelectorAll('.addon-item').length : 0);
+    const bothCount = countItems(bothContainer);
+    const catalogCount = countItems(catalogContainer);
+    const streamCount = countItems(streamContainer);
+
+    const linkedCatalogCount = bothCount + catalogCount;
+    catalogLedEl.classList.toggle('is-green', linkedCatalogCount > 0);
+    catalogLedEl.classList.toggle('is-red', linkedCatalogCount === 0);
+    catalogTextEl.textContent = linkedCatalogCount > 0 ? 'Ready' : 'Add manifest';
+    catalogActionEl.classList.toggle('needs-attention', linkedCatalogCount === 0);
+    selectedCatalogCountEl.textContent = String(loadedCatalogs.filter(catalog => catalog.enabled).length);
+
+    const hasStreamManifest = bothCount + streamCount > 0;
+    streamLedEl.classList.toggle('is-green', hasStreamManifest);
+    streamLedEl.classList.toggle('is-red', !hasStreamManifest);
+    streamTextEl.textContent = hasStreamManifest ? 'Ready' : 'Add manifest';
+    streamActionEl.classList.toggle('needs-attention', !hasStreamManifest);
+}
+
+function initializeSidebarAddonHealth() {
+    const containers = ['addon-list-both', 'addon-list-catalog', 'addon-list-stream']
+        .map(id => document.getElementById(id))
+        .filter(Boolean);
+
+    if (!containers.length) {
+        return;
+    }
+
+    const observer = new MutationObserver(() => {
+        updateSidebarAddonHealth();
+    });
+
+    containers.forEach(container => {
+        observer.observe(container, { childList: true, subtree: true, attributes: true });
+        container.addEventListener('input', updateSidebarAddonHealth);
+        container.addEventListener('change', updateSidebarAddonHealth);
+    });
+    updateSidebarAddonHealth();
 }
 
 async function loadAuthState() {
@@ -540,7 +642,7 @@ function calculateProcessingRates(stats, timing) {
     const procMins = (timing.processing_duration || 1) / 60;
     return {
         movie_rate: (stats.movies_prefetched / procMins).toFixed(1),
-        series_rate: (stats.episodes_prefetched / procMins).toFixed(1),
+        series_rate: (stats.series_prefetched / procMins).toFixed(1),
         overall_rate: ((stats.movies_prefetched + stats.series_prefetched) / procMins).toFixed(1)
     };
 }
@@ -589,22 +691,54 @@ function toggleWarningBox(warningId) {
 // Scheduling Functions
 // ============================================================================
 
+function getInlineScheduleDayCheckboxes() {
+    return document.querySelectorAll('input[name="inline-day"]');
+}
+
+function syncInlineScheduleEditor(schedule = null) {
+    const timeInput = document.getElementById('schedule-time-inline');
+    const saveBtn = document.getElementById('schedule-save-btn');
+    const cancelBtn = document.getElementById('schedule-cancel-btn');
+    if (!timeInput || !saveBtn || !cancelBtn) {
+        return;
+    }
+
+    const nextSchedule = schedule || { time: '02:00', days: [] };
+    timeInput.value = nextSchedule.time || '02:00';
+
+    getInlineScheduleDayCheckboxes().forEach(cb => {
+        cb.checked = nextSchedule.days.includes(parseInt(cb.value));
+    });
+
+    const isEditing = editingScheduleIndex !== null;
+    saveBtn.textContent = isEditing ? 'Update Schedule' : 'Add Schedule';
+    cancelBtn.style.display = isEditing ? '' : 'none';
+}
+
 function toggleScheduling() {
     const checkbox = document.getElementById('scheduling-enabled');
     const content = document.getElementById('scheduling-settings');
     const addBtn = document.getElementById('add-schedule-btn');
+    const editor = document.getElementById('schedule-inline-editor');
 
     if (checkbox.checked) {
-        // Enable scheduling
         content.classList.remove('scheduling-disabled');
-        addBtn.disabled = false;
     } else {
-        // Disable scheduling
         content.classList.add('scheduling-disabled');
-        addBtn.disabled = true;
+        editingScheduleIndex = null;
+        syncInlineScheduleEditor();
     }
 
-    // Immediately save scheduling state
+    if (addBtn) {
+        addBtn.disabled = !checkbox.checked;
+    }
+
+    if (editor) {
+        editor.querySelectorAll('input, button').forEach(control => {
+            control.disabled = !checkbox.checked;
+        });
+    }
+
     saveSchedulesSilent();
 }
 
@@ -670,31 +804,26 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function showAddScheduleModal() {
     editingScheduleIndex = null;
-    document.getElementById('modal-title').textContent = 'Add Schedule';
-    document.getElementById('schedule-time').value = '';
-
-    // Uncheck all days
-    document.querySelectorAll('input[name="day"]').forEach(cb => cb.checked = false);
-
-    document.getElementById('schedule-modal').style.display = 'flex';
+    syncInlineScheduleEditor();
+    document.getElementById('schedule-time-inline')?.focus();
 }
 
 function closeScheduleModal() {
-    document.getElementById('schedule-modal').style.display = 'none';
     editingScheduleIndex = null;
+    syncInlineScheduleEditor();
 }
 
 function selectAllDays() {
-    document.querySelectorAll('input[name="day"]').forEach(cb => cb.checked = true);
+    getInlineScheduleDayCheckboxes().forEach(cb => cb.checked = true);
 }
 
 function deselectAllDays() {
-    document.querySelectorAll('input[name="day"]').forEach(cb => cb.checked = false);
+    getInlineScheduleDayCheckboxes().forEach(cb => cb.checked = false);
 }
 
 function saveScheduleFromModal() {
-    const time = document.getElementById('schedule-time').value;
-    const selectedDays = Array.from(document.querySelectorAll('input[name="day"]:checked'))
+    const time = document.getElementById('schedule-time-inline').value;
+    const selectedDays = Array.from(document.querySelectorAll('input[name="inline-day"]:checked'))
         .map(cb => parseInt(cb.value));
 
     if (!time) {
@@ -713,14 +842,13 @@ function saveScheduleFromModal() {
     };
 
     if (editingScheduleIndex !== null) {
-        // Update existing schedule
         currentSchedules[editingScheduleIndex] = schedule;
     } else {
-        // Add new schedule
         currentSchedules.push(schedule);
     }
 
-    closeScheduleModal();
+    editingScheduleIndex = null;
+    syncInlineScheduleEditor();
     renderSchedulesList();
     saveSchedulesSilent();
 }
@@ -728,16 +856,8 @@ function saveScheduleFromModal() {
 function editSchedule(index) {
     editingScheduleIndex = index;
     const schedule = currentSchedules[index];
-
-    document.getElementById('modal-title').textContent = 'Edit Schedule';
-    document.getElementById('schedule-time').value = schedule.time;
-
-    // Set day checkboxes
-    document.querySelectorAll('input[name="day"]').forEach(cb => {
-        cb.checked = schedule.days.includes(parseInt(cb.value));
-    });
-
-    document.getElementById('schedule-modal').style.display = 'flex';
+    syncInlineScheduleEditor(schedule);
+    document.getElementById('schedule-time-inline')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function deleteSchedule(index) {
@@ -776,6 +896,10 @@ function renderSchedulesList() {
             </div>
         `;
         deleteAllBtn.style.display = 'none';
+        if (editingScheduleIndex !== null) {
+            editingScheduleIndex = null;
+            syncInlineScheduleEditor();
+        }
         return;
     }
 
@@ -858,7 +982,8 @@ async function saveSchedulesSilent() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 enabled: enabled,
-                schedules: currentSchedules
+                schedules: currentSchedules,
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
             })
         });
 
@@ -905,8 +1030,8 @@ async function loadSchedules() {
             checkbox.checked = scheduleData.enabled || false;
             toggleScheduling();
 
-            // Render the schedule list
             renderSchedulesList();
+            syncInlineScheduleEditor(currentSchedules[0] || null);
         }
     } catch (error) {
         console.error('Error loading schedules:', error);
@@ -989,45 +1114,13 @@ let lastKnownProgress = null;
 // ============================================================================
 
 async function checkTimezoneMismatch() {
-    try {
-        // Get browser timezone
-        const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-        // Fetch server timezone
-        const response = await fetch('/api/timezone');
-        const data = await response.json();
-
-        if (data.success && data.timezone) {
-            const serverTimezone = data.timezone;
-
-            // Compare timezones (case-insensitive)
-            if (browserTimezone.toLowerCase() !== serverTimezone.toLowerCase()) {
-                // Timezones differ - show banner
-                const banner = document.getElementById('timezone-mismatch-banner');
-                const browserTzSpan = document.getElementById('browser-tz');
-                const serverTzSpan = document.getElementById('server-tz');
-
-                if (banner && browserTzSpan && serverTzSpan) {
-                    browserTzSpan.textContent = browserTimezone;
-                    serverTzSpan.textContent = serverTimezone;
-                    banner.style.display = 'flex';
-
-                    addDebugLog(`Timezone mismatch: Browser=${browserTimezone}, Server=${serverTimezone}`);
-                }
-            } else {
-                // Timezones match - hide banner
-                const banner = document.getElementById('timezone-mismatch-banner');
-                if (banner) {
-                    banner.style.display = 'none';
-                }
-
-                addDebugLog(`Timezones match: ${browserTimezone}`);
-            }
-        }
-    } catch (error) {
-        console.error('Error checking timezone mismatch:', error);
-        addDebugLog(`Error checking timezone: ${error.message}`);
+    const banner = document.getElementById('timezone-mismatch-banner');
+    if (banner) {
+        banner.style.display = 'none';
     }
+
+    const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    addDebugLog(`Schedules use browser timezone: ${browserTimezone}`);
 }
 
 // ============================================================================
@@ -1073,6 +1166,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
+    switchWorkspaceView('addons');
+
     // Load saved catalog selection first, before loading config
     addDebugLog('Loading saved catalog selection...');
     await loadSavedCatalogSelection();
@@ -1110,6 +1205,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Enable drag and drop for addon URLs
     initializeAddonUrlDragDrop();
+    initializeSidebarAddonHealth();
 
     // Initialize tooltips
     initializeTooltips();
@@ -1520,33 +1616,12 @@ function populateConfigurationForm(config) {
     setLimitValue('max-mixed-items-per-catalog-fetch', config.max_mixed_items_per_catalog_fetch);
 
     // Populate time-based parameters
-    // Delay - use largest divisible unit
+    // Delay is intentionally constrained to 1-5 seconds in the simplified UI.
     const delayValue = config.delay !== undefined ? config.delay : 2;
-    if (delayValue === 0) {
-        // No delay - show 2 seconds in UI but checkbox will be checked
-        document.getElementById('delay-no-delay').checked = true;
-        document.getElementById('delay-value').value = 2;
-        document.getElementById('delay-unit').value = '1';
-    } else {
-        document.getElementById('delay-no-delay').checked = false;
-        if (delayValue % 3600 === 0) {
-            // Divisible by hours
-            document.getElementById('delay-value').value = delayValue / 3600;
-            document.getElementById('delay-unit').value = '3600';
-        } else if (delayValue % 60 === 0) {
-            // Divisible by minutes
-            document.getElementById('delay-value').value = delayValue / 60;
-            document.getElementById('delay-unit').value = '60';
-        } else if (delayValue >= 1) {
-            // Whole seconds
-            document.getElementById('delay-value').value = delayValue;
-            document.getElementById('delay-unit').value = '1';
-        } else {
-            // Fractional seconds - show in milliseconds
-            document.getElementById('delay-value').value = delayValue * 1000;
-            document.getElementById('delay-unit').value = '0.001';
-        }
-    }
+    const safeDelayValue = Math.min(5, Math.max(1, delayValue || 2));
+    document.getElementById('delay-no-delay').checked = false;
+    document.getElementById('delay-value').value = safeDelayValue;
+    document.getElementById('delay-unit').value = '1';
     toggleNoDelay();
 
     // Network Request Timeout - handle unlimited (-1) and convert to appropriate unit
@@ -1607,10 +1682,10 @@ function populateConfigurationForm(config) {
     // Max Execution Time - use largest divisible unit
     const maxExecSeconds = config.max_execution_time !== undefined ? config.max_execution_time : 5400;
     if (maxExecSeconds === -1) {
-        // Unlimited - show 90 minutes in UI but checkbox will be checked
+        // Legacy unlimited configs now fall back to the safer visible default.
         document.getElementById('max-execution-time-value').value = 90;
         document.getElementById('max-execution-time-unit').value = '60';
-        document.getElementById('max-execution-time-unlimited').checked = true;
+        document.getElementById('max-execution-time-unlimited').checked = false;
     } else if (maxExecSeconds % 86400 === 0) {
         // Divisible by days
         document.getElementById('max-execution-time-value').value = maxExecSeconds / 86400;
@@ -1743,7 +1818,7 @@ function createAddonUrlItem(url, type, index, name = null, forceEdit = false, lo
     } else {
         // Display mode - show name/URL as read-only, enable dragging
         div.draggable = true;
-        const logoHtml = logo ? `<img src="${logo}" alt="" class="addon-logo" onerror="this.style.display='none'">` : '';
+        const logoHtml = buildAddonLogoHtml(type, logo);
         div.innerHTML = `
             <span class="drag-handle">⋮⋮</span>
             <div class="addon-content">
@@ -1774,6 +1849,32 @@ function createAddonUrlItem(url, type, index, name = null, forceEdit = false, lo
     setupAddonDragDrop(div);
 
     return div;
+}
+
+function buildAddonLogoHtml(type, logo) {
+    const aioFallbackLogo = 'https://aio.wolfangus.fr/logo.png';
+    const safeLogo = logo ? String(logo).replace(/"/g, '&quot;') : '';
+
+    if (type !== 'stream') {
+        return safeLogo ? `<img src="${safeLogo}" alt="" class="addon-logo">` : '';
+    }
+
+    const src = safeLogo || aioFallbackLogo;
+    return `<img src="${src}" alt="" class="addon-logo" data-addon-type="${type}" data-fallback-src="${aioFallbackLogo}" onerror="handleAddonLogoError(this)">`;
+}
+
+function handleAddonLogoError(img) {
+    const fallbackSrc = img.dataset.fallbackSrc;
+    if (fallbackSrc && img.src !== fallbackSrc && img.dataset.fallbackApplied !== 'true') {
+        img.dataset.fallbackApplied = 'true';
+        img.src = fallbackSrc;
+        return;
+    }
+
+    const fallback = document.createElement('span');
+    fallback.className = 'addon-logo addon-logo-fallback';
+    fallback.textContent = img.dataset.addonType === 'stream' ? 'Aio' : '';
+    img.replaceWith(fallback);
 }
 
 function addAddonUrl(type) {
@@ -2248,33 +2349,41 @@ async function saveConfigurationSilent() {
             return parseInt(document.getElementById(fieldId).value);
         };
 
+        const moviesPerCatalog = getLimitValue('movies-per-catalog');
+        const seriesPerCatalog = getLimitValue('episodes-per-catalog');
+        const mixedPerCatalog = getLimitValue('episodes-per-mixed-catalog');
+        const effectiveSeriesPerCatalog = seriesPerCatalog === 0 ? 1 : seriesPerCatalog;
+        const delaySeconds = document.getElementById('delay-no-delay').checked
+            ? 1
+            : parseFloat(document.getElementById('delay-value').value) * parseFloat(document.getElementById('delay-unit').value);
+
         // Collect configuration
         const config = {
             addon_urls: addonUrls,
             movies_global_limit: getLimitValue('movies-global-limit'),
             episodes_global_limit: getLimitValue('episodes-global-limit'),
-            movies_per_catalog: getLimitValue('movies-per-catalog'),
-            episodes_per_catalog: getLimitValue('episodes-per-catalog'),
-            episodes_per_mixed_catalog: getLimitValue('episodes-per-mixed-catalog'),
-            max_movie_items_per_catalog_fetch: getLimitValue('max-movie-items-per-catalog-fetch'),
-            max_series_items_per_catalog_fetch: getLimitValue('max-series-items-per-catalog-fetch'),
-            max_mixed_items_per_catalog_fetch: getLimitValue('max-mixed-items-per-catalog-fetch'),
-            delay: document.getElementById('delay-no-delay').checked ? 0 : parseFloat(document.getElementById('delay-value').value) * parseFloat(document.getElementById('delay-unit').value),
-            network_request_timeout: document.getElementById('network-request-timeout-unlimited').checked ? -1 : parseFloat(document.getElementById('network-request-timeout-value').value) * parseFloat(document.getElementById('network-request-timeout-unit').value),
-            cache_validity: document.getElementById('cache-validity-unlimited').checked ? -1 : parseFloat(document.getElementById('cache-validity-value').value) * parseFloat(document.getElementById('cache-validity-unit').value),
+            movies_per_catalog: moviesPerCatalog,
+            episodes_per_catalog: effectiveSeriesPerCatalog,
+            episodes_per_mixed_catalog: mixedPerCatalog,
+            max_movie_items_per_catalog_fetch: moviesPerCatalog,
+            max_series_items_per_catalog_fetch: effectiveSeriesPerCatalog,
+            max_mixed_items_per_catalog_fetch: mixedPerCatalog,
+            delay: Math.min(5, Math.max(1, delaySeconds || 2)),
+            network_request_timeout: 30,
+            cache_validity: 604800,
             max_execution_time: document.getElementById('max-execution-time-unlimited').checked ? -1 : parseFloat(document.getElementById('max-execution-time-value').value) * parseFloat(document.getElementById('max-execution-time-unit').value),
-            proxy: document.getElementById('proxy').value.trim(),
-            randomize_catalog_processing: document.querySelector('input[name="randomize-catalog"]:checked').value === 'true',
-            randomize_item_prefetching: document.querySelector('input[name="randomize-item"]:checked').value === 'true',
-            enable_logging: document.querySelector('input[name="enable-logging"]:checked').value === 'true',
+            proxy: '',
+            randomize_catalog_processing: false,
+            randomize_item_prefetching: false,
+            enable_logging: false,
             cache_uncached_streams: {
-                enabled: document.getElementById('cache-uncached-streams-enabled').checked,
-                cached_stream_regex: document.getElementById('cached-stream-regex').value.trim(),
-                skip_streams_regex: document.getElementById('skip-streams-regex').value.trim(),
-                max_successful_cache_requests_per_item: parseInt(document.getElementById('max-successful-cache-requests-per-item').value),
-                max_cache_request_attempts_per_item: parseInt(document.getElementById('max-cache-request-attempts-per-item').value),
-                max_cache_requests_global: parseInt(document.getElementById('max-cache-requests-global').value),
-                cached_streams_count_threshold: parseInt(document.getElementById('cached-streams-count-threshold').value)
+                enabled: true,
+                cached_stream_regex: '\u26a1',
+                skip_streams_regex: '',
+                max_successful_cache_requests_per_item: 1,
+                max_cache_request_attempts_per_item: 1,
+                max_cache_requests_global: parseInt(document.getElementById('max-cache-requests-global').value) || -1,
+                cached_streams_count_threshold: 0
             }
         };
 
@@ -2343,33 +2452,41 @@ async function saveConfiguration() {
             return parseInt(document.getElementById(fieldId).value);
         };
 
+        const moviesPerCatalog = getLimitValue('movies-per-catalog');
+        const seriesPerCatalog = getLimitValue('episodes-per-catalog');
+        const mixedPerCatalog = getLimitValue('episodes-per-mixed-catalog');
+        const effectiveSeriesPerCatalog = seriesPerCatalog === 0 ? 1 : seriesPerCatalog;
+        const delaySeconds = document.getElementById('delay-no-delay').checked
+            ? 1
+            : parseFloat(document.getElementById('delay-value').value) * parseFloat(document.getElementById('delay-unit').value);
+
         // Collect configuration
         const config = {
             addon_urls: addonUrls,
             movies_global_limit: getLimitValue('movies-global-limit'),
             episodes_global_limit: getLimitValue('episodes-global-limit'),
-            movies_per_catalog: getLimitValue('movies-per-catalog'),
-            episodes_per_catalog: getLimitValue('episodes-per-catalog'),
-            episodes_per_mixed_catalog: getLimitValue('episodes-per-mixed-catalog'),
-            max_movie_items_per_catalog_fetch: getLimitValue('max-movie-items-per-catalog-fetch'),
-            max_series_items_per_catalog_fetch: getLimitValue('max-series-items-per-catalog-fetch'),
-            max_mixed_items_per_catalog_fetch: getLimitValue('max-mixed-items-per-catalog-fetch'),
-            delay: document.getElementById('delay-no-delay').checked ? 0 : parseFloat(document.getElementById('delay-value').value) * parseFloat(document.getElementById('delay-unit').value),
-            network_request_timeout: document.getElementById('network-request-timeout-unlimited').checked ? -1 : parseFloat(document.getElementById('network-request-timeout-value').value) * parseFloat(document.getElementById('network-request-timeout-unit').value),
-            cache_validity: document.getElementById('cache-validity-unlimited').checked ? -1 : parseFloat(document.getElementById('cache-validity-value').value) * parseFloat(document.getElementById('cache-validity-unit').value),
+            movies_per_catalog: moviesPerCatalog,
+            episodes_per_catalog: effectiveSeriesPerCatalog,
+            episodes_per_mixed_catalog: mixedPerCatalog,
+            max_movie_items_per_catalog_fetch: moviesPerCatalog,
+            max_series_items_per_catalog_fetch: effectiveSeriesPerCatalog,
+            max_mixed_items_per_catalog_fetch: mixedPerCatalog,
+            delay: Math.min(5, Math.max(1, delaySeconds || 2)),
+            network_request_timeout: 30,
+            cache_validity: 604800,
             max_execution_time: document.getElementById('max-execution-time-unlimited').checked ? -1 : parseFloat(document.getElementById('max-execution-time-value').value) * parseFloat(document.getElementById('max-execution-time-unit').value),
-            proxy: document.getElementById('proxy').value.trim(),
-            randomize_catalog_processing: document.querySelector('input[name="randomize-catalog"]:checked').value === 'true',
-            randomize_item_prefetching: document.querySelector('input[name="randomize-item"]:checked').value === 'true',
-            enable_logging: document.querySelector('input[name="enable-logging"]:checked').value === 'true',
+            proxy: '',
+            randomize_catalog_processing: false,
+            randomize_item_prefetching: false,
+            enable_logging: false,
             cache_uncached_streams: {
-                enabled: document.getElementById('cache-uncached-streams-enabled').checked,
-                cached_stream_regex: document.getElementById('cached-stream-regex').value.trim(),
-                skip_streams_regex: document.getElementById('skip-streams-regex').value.trim(),
-                max_successful_cache_requests_per_item: parseInt(document.getElementById('max-successful-cache-requests-per-item').value),
-                max_cache_request_attempts_per_item: parseInt(document.getElementById('max-cache-request-attempts-per-item').value),
-                max_cache_requests_global: parseInt(document.getElementById('max-cache-requests-global').value),
-                cached_streams_count_threshold: parseInt(document.getElementById('cached-streams-count-threshold').value)
+                enabled: true,
+                cached_stream_regex: '\u26a1',
+                skip_streams_regex: '',
+                max_successful_cache_requests_per_item: 1,
+                max_cache_request_attempts_per_item: 1,
+                max_cache_requests_global: parseInt(document.getElementById('max-cache-requests-global').value) || -1,
+                cached_streams_count_threshold: 0
             }
         };
 
@@ -2541,63 +2658,16 @@ async function performReset() {
 }
 
 // ============================================================================
-// Terminate Job with Hold-Down Countdown
+// Terminate Job
 // ============================================================================
 
-let terminateCountdownInterval = null;
-let terminateStartTime = null;
-const TERMINATE_HOLD_DURATION = 5000; // 5 seconds in milliseconds
-
-function startTerminateCountdown() {
-    const btn = document.getElementById('terminate-btn');
-
-    // Prevent multiple countdowns
-    if (terminateCountdownInterval) {
-        return;
+function confirmTerminateJob() {
+    if (confirm('Are you sure you want to terminate the current prefetch run?')) {
+        performTerminate();
     }
-
-    terminateStartTime = Date.now();
-    btn.classList.add('terminating', 'pulsating');
-
-    // Update button text and animation every 100ms
-    terminateCountdownInterval = setInterval(() => {
-        // Check if interval was cleared (user released button)
-        if (!terminateCountdownInterval) {
-            return;
-        }
-
-        const elapsed = Date.now() - terminateStartTime;
-        const remaining = TERMINATE_HOLD_DURATION - elapsed;
-        const secondsRemaining = Math.ceil(remaining / 1000);
-
-        if (remaining <= 0) {
-            // Countdown complete - perform termination
-            clearInterval(terminateCountdownInterval);
-            terminateCountdownInterval = null;
-            performTerminate();
-        } else {
-            // Update button text with countdown
-            btn.textContent = `Terminating in ${secondsRemaining}...`;
-
-            // Update animation based on progress
-            const progress = elapsed / TERMINATE_HOLD_DURATION;
-            updateTerminateAnimation(btn, progress);
-        }
-    }, 100);
 }
 
-function resetTerminateButton(force = false) {
-    // Only reset if countdown is active (user released early) OR if forced (new job starting)
-    if (!force && !terminateCountdownInterval) {
-        return;
-    }
-
-    if (terminateCountdownInterval) {
-        clearInterval(terminateCountdownInterval);
-        terminateCountdownInterval = null;
-        terminateStartTime = null;
-    }
-
+function resetTerminateButton() {
     const btn = document.getElementById('terminate-btn');
     if (btn) {
         btn.innerHTML = `
@@ -2612,20 +2682,6 @@ function resetTerminateButton(force = false) {
         btn.style.removeProperty('--pulse-duration');
         btn.disabled = false;
     }
-}
-
-function updateTerminateAnimation(btn, progress) {
-    // Smoothly transition animation speed from 2s (slow) to 0.25s (very fast)
-    // Using an exponential curve for more dramatic acceleration
-    const minDuration = 0.25; // seconds (very fast)
-    const maxDuration = 2.0;  // seconds (slow)
-
-    // Exponential easing: starts slow, accelerates dramatically near the end
-    const easedProgress = Math.pow(progress, 2);
-    const duration = maxDuration - (easedProgress * (maxDuration - minDuration));
-
-    // Set CSS variable for smooth animation speed transition
-    btn.style.setProperty('--pulse-duration', `${duration}s`);
 }
 
 async function performTerminate() {
@@ -2775,6 +2831,7 @@ async function loadSavedCatalogSelection() {
             renderCatalogList(data.catalogs);
             document.getElementById('catalog-list-container').style.display = 'block';
             document.getElementById('catalog-type-filter').style.display = 'flex';
+            document.getElementById('catalog-search-row').style.display = 'block';
             document.getElementById('select-all-btn').style.display = 'block';
             document.getElementById('deselect-all-btn').style.display = 'block';
             catalogsLoaded = true;
@@ -2865,6 +2922,7 @@ async function loadCatalogs(silent = false) {
             renderCatalogList(loadedCatalogs);
             document.getElementById('catalog-list-container').style.display = 'block';
             document.getElementById('catalog-type-filter').style.display = 'flex';
+            document.getElementById('catalog-search-row').style.display = 'block';
             document.getElementById('select-all-btn').style.display = 'block';
             document.getElementById('deselect-all-btn').style.display = 'block';
             catalogsLoaded = true;
@@ -2912,7 +2970,10 @@ function getFilteredCatalogs(catalogs) {
     return catalogs.filter(catalog => {
         const matchesType = catalogTypeFilter === 'all' || (catalog.type || '').toLowerCase() === catalogTypeFilter;
         const matchesHome = !catalogHomeOnlyFilter || catalog.showInHome === true;
-        return matchesType && matchesHome;
+        const haystack = `${catalog.name || ''} ${(catalog.type || '')} ${(catalog.addon_name || '')}`.toLowerCase();
+        const searchTerms = catalogSearchQuery.toLowerCase().split(/\s+/).filter(Boolean);
+        const matchesSearch = searchTerms.length === 0 || searchTerms.every(term => haystack.includes(term));
+        return matchesType && matchesHome && matchesSearch;
     });
 }
 
@@ -2923,6 +2984,7 @@ function applyCatalogTypeFilterUI() {
         series: document.getElementById('catalog-filter-series-btn'),
         home: document.getElementById('catalog-filter-home-btn')
     };
+    const searchInput = document.getElementById('catalog-search-input');
 
     Object.entries(buttons).forEach(([filter, button]) => {
         if (!button) return;
@@ -2933,8 +2995,13 @@ function applyCatalogTypeFilterUI() {
         }
     });
 
+    if (searchInput && searchInput.value !== catalogSearchQuery) {
+        searchInput.value = catalogSearchQuery;
+    }
+
     localStorage.setItem('catalog-type-filter', catalogTypeFilter);
     localStorage.setItem('catalog-home-only-filter', catalogHomeOnlyFilter ? 'true' : 'false');
+    localStorage.setItem('catalog-search-query', catalogSearchQuery);
 }
 
 function setCatalogHomeOnlyFilter(enabled) {
@@ -2951,6 +3018,14 @@ function setCatalogTypeFilter(filter) {
     lastCatalogCheckboxIndex = null;
     renderCatalogList(loadedCatalogs);
     addDebugLog(`[CATALOG FILTER] Showing ${catalogTypeFilter}`);
+}
+
+function setCatalogSearchQuery(query) {
+    catalogSearchQuery = (query || '').trim();
+    applyCatalogTypeFilterUI();
+    lastCatalogCheckboxIndex = null;
+    renderCatalogList(loadedCatalogs);
+    addDebugLog(`[CATALOG FILTER] Search ${catalogSearchQuery ? `"${catalogSearchQuery}"` : 'cleared'}`);
 }
 
 function renderCatalogList(catalogs) {
@@ -2991,8 +3066,10 @@ function renderCatalogList(catalogs) {
     if (statusEl) {
         const label = catalogTypeFilter === 'all' ? 'all' : `${catalogTypeFilter}s`;
         const homeLabel = catalogHomeOnlyFilter ? 'home only' : 'all home flags';
-        statusEl.textContent = `${filteredCatalogs.length} ${label} shown • ${homeLabel}`;
+        const searchLabel = catalogSearchQuery ? ` - search "${catalogSearchQuery}"` : '';
+        statusEl.textContent = `${filteredCatalogs.length} ${label} shown - ${homeLabel}${searchLabel}`;
     }
+    updateSidebarAddonHealth();
 }
 
 function handleCatalogCheckboxClick(event, catalogId) {
@@ -3014,6 +3091,7 @@ function handleCatalogCheckboxClick(event, catalogId) {
         lastCatalogCheckboxIndex = currentIndex;
         renderCatalogList(loadedCatalogs);
         updateStartNowButtonState();
+        updateSidebarAddonHealth();
         autoSaveCatalogSelection();
         return;
     }
@@ -3028,6 +3106,7 @@ function toggleCatalog(catalogId, enabled) {
         addDebugLog(`[CATALOG TOGGLE] Catalog "${catalog.name}" toggled to ${enabled ? 'ENABLED' : 'DISABLED'}`);
         catalog.enabled = enabled;
         updateStartNowButtonState();
+        updateSidebarAddonHealth();
         autoSaveCatalogSelection();
     } else {
         addDebugLog(`[CATALOG TOGGLE] WARNING: Catalog ID ${catalogId} not found`);
@@ -3042,6 +3121,7 @@ function selectAllCatalogs() {
     });
     renderCatalogList(loadedCatalogs);
     updateStartNowButtonState();
+    updateSidebarAddonHealth();
     autoSaveCatalogSelection();
 }
 
@@ -3053,6 +3133,7 @@ function deselectAllCatalogs() {
     });
     renderCatalogList(loadedCatalogs);
     updateStartNowButtonState();
+    updateSidebarAddonHealth();
     autoSaveCatalogSelection();
 }
 
@@ -3207,6 +3288,7 @@ async function resetCatalogSelections() {
             // Clear the catalog list UI
             document.getElementById('catalog-list').innerHTML = '';
             document.getElementById('catalog-list-container').style.display = 'none';
+            document.getElementById('catalog-search-row').style.display = 'none';
             document.getElementById('select-all-btn').style.display = 'none';
             document.getElementById('deselect-all-btn').style.display = 'none';
 
@@ -4543,9 +4625,6 @@ async function runJob() {
         showNotification('Error starting job', 'error');
     }
 }
-
-// terminateJob() has been replaced with hold-down countdown pattern
-// See startTerminateCountdown() and performTerminate() functions above
 
 function dismissCompletion() {
     addDebugLog(`[DISMISS] dismissCompletion() called`);

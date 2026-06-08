@@ -154,9 +154,13 @@ class JobScheduler:
             print(f"Error updating schedule: {e}")
             return False
 
-    def update_schedules(self, enabled: bool, schedules: list):
+    def update_schedules(self, enabled: bool, schedules: list, timezone_str: str = None):
         """Update multiple scheduled jobs from UI format"""
         try:
+            schedule_timezone = self.timezone
+            if timezone_str:
+                schedule_timezone = pytz.timezone(timezone_str)
+
             # Remove all existing scheduled jobs
             for job in self.scheduler.get_jobs():
                 if job.id.startswith('prefetch_job'):
@@ -190,7 +194,7 @@ class JobScheduler:
                         day_of_week=days_str,
                         hour=hour,
                         minute=minute,
-                        timezone=self.timezone
+                        timezone=schedule_timezone
                     )
 
                     # Add job
@@ -206,7 +210,8 @@ class JobScheduler:
             self.config_manager.update({
                 'schedule': {
                     'enabled': enabled,
-                    'schedules': schedules
+                    'schedules': schedules,
+                    'timezone': timezone_str or str(schedule_timezone)
                 }
             })
 

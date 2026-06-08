@@ -1600,7 +1600,7 @@ class StreamsPrefetcher:
 
                     # Use Item object property for type checking instead of manual parsing
                     if item_obj.item_type == 'movie' and self.movies_global_limit != -1 and self.prefetched_movies_count >= self.movies_global_limit: continue
-                    if item_obj.item_type == 'series' and self.episodes_global_limit != -1 and self.prefetched_episodes_count >= self.episodes_global_limit: continue
+                    if item_obj.item_type == 'series' and self.episodes_global_limit != -1 and self.series_count >= self.episodes_global_limit: continue
 
                     dashboard_args = {
                         'catalog_statuses': [c['status'] for c in self.progress_tracker.overall_catalogs],
@@ -1676,7 +1676,6 @@ class StreamsPrefetcher:
                             )
 
                     elif item_obj.item_type == 'series':
-                        # Use already created Item object instead of creating duplicate
                         self.progress_tracker.redraw_dashboard(
                             current_title=item_obj.get_dashboard_title(),
                             current_imdb_id=item_obj.imdb_id,
@@ -1684,105 +1683,42 @@ class StreamsPrefetcher:
                             **dashboard_args
                         )
 
-                        # Check if pause was requested BEFORE prefetching (after showing UI)
-                        if self.scheduler and self.scheduler.pause_requested:
-                            # UI already shows this series (poster, name, etc.)
-                            # Now pause before prefetching it
-                            self.scheduler.complete_pause()
-                            # This will block here until resumed
-                            self.scheduler.pause_event.wait()
-
-                        episodes = self.get_series_episodes(item_obj.get_series_imdb_id(), cat_addon_url)
-                        if not episodes:
-                            failed_count += 1
-                            item_statuses_on_page.append('failed')
-                            # Check if pause was requested
+                        if self.is_cache_valid(item_obj):
+                            cached_count += 1
+                            self.prefetched_cached_count += 1
+                            item_statuses_on_page.append('cached')
+                            self._current_dashboard_args = dashboard_args
+                            self._auto_redraw_dashboard()
                             if self.scheduler and self.scheduler.pause_requested:
                                 self.scheduler.complete_pause()
                                 self.scheduler.pause_event.wait()
                             continue
-                        self.results['statistics']['episodes_found'] += len(episodes)
 
-                        # Track if this is the first episode from this series
-                        series_imdb_id = item_obj.get_series_imdb_id()
-                        series_first_episode = series_imdb_id not in self.processed_series_ids
+                        if self.scheduler and self.scheduler.pause_requested:
+                            self.scheduler.complete_pause()
+                            self.scheduler.pause_event.wait()
 
-                        series_had_success = False
-                        episodes_processed_from_series = 0
-                        for ep in episodes:
-                            # Check episode limit BEFORE processing
-                            if self.episodes_global_limit != -1 and self.prefetched_episodes_count >= self.episodes_global_limit:
-                                logger.info(f"Reached global episode limit ({self.episodes_global_limit}), stopping mid-series")
-                                break
+                        if self._check_time_limit():
+                            break
 
-                            # Check catalog limit BEFORE processing
-                            if self.episodes_per_catalog != -1 and prefetched_in_this_catalog >= self.episodes_per_catalog:
-                                logger.info(f"Reached catalog episode limit ({self.episodes_per_catalog}), moving to next catalog")
-                                break
-
-                            # Check if paused BEFORE starting new episode (wait if paused)
-                            if self.scheduler:
-                                self.scheduler.pause_event.wait()  # Blocks if paused, returns immediately if not
-
-                            # Create episode Item
-                            ep_item = self.create_episode_item(item_obj, ep)
-
-                            if self.is_cache_valid(ep_item):
-                                # Check if pause was requested
-                                if self.scheduler and self.scheduler.pause_requested:
-                                    self.scheduler.complete_pause()
-                                    self.scheduler.pause_event.wait()
-                                continue
-
-                            dashboard_args['item_statuses'] = item_statuses_on_page # Ensure dashboard has latest statuses
-                            self.progress_tracker.redraw_dashboard(
-                                current_title=ep_item.get_dashboard_title(),
-                                current_imdb_id=ep_item.imdb_id,
-                                current_item_type=ep_item.item_type,
-                                **dashboard_args
-                            )
-
-                            # Check if pause was requested BEFORE prefetching (after showing UI)
-                            if self.scheduler and self.scheduler.pause_requested:
-                                # UI already shows this episode (poster, name, etc.)
-                                # Now pause before prefetching it
-                                self.scheduler.complete_pause()
-                                # This will block here until resumed
-                                self.scheduler.pause_event.wait()
-
-                            # Check time limit before starting HTTP request
-                            if self._check_time_limit():
-                                break
-
-                            if self.prefetch_streams(ep_item):
-                               self.update_cache(ep_item)
-                               series_had_success = True
-                               self.prefetched_episodes_count += 1
-                               prefetched_in_this_catalog += 1
-                               episodes_processed_from_series += 1
-
-                               # Increment series counter if this is first episode from this series
-                               if series_first_episode:
-                                   self.series_count += 1
-                                   self.processed_series_ids.add(series_imdb_id)
-                                   series_first_episode = False
-
-                            # Update dashboard immediately with latest cache request counts (bypass throttling)
-                            if self.cache_uncached_streams_enabled:
-                                dashboard_args['item_statuses'] = item_statuses_on_page
-                                self.progress_tracker.redraw_dashboard(
-                                    current_title=ep_item.get_dashboard_title(),
-                                    current_imdb_id=ep_item.imdb_id,
-                                    current_item_type=ep_item.item_type,
-                                    **dashboard_args
-                                )
-
-                        if series_had_success:
+                        if self.prefetch_streams(item_obj):
+                            self.update_cache(item_obj)
+                            self.series_count += 1
+                            prefetched_in_this_catalog += 1
                             success_count += 1
                             item_statuses_on_page.append('successful')
                         else:
                             failed_count += 1
                             item_statuses_on_page.append('failed')
+
+                        if self.cache_uncached_streams_enabled:
+                            dashboard_args['item_statuses'] = item_statuses_on_page
+                            self.progress_tracker.redraw_dashboard(
+                                current_title=item_obj.get_dashboard_title(),
+                                current_imdb_id=item_obj.imdb_id,
+                                current_item_type=item_obj.item_type,
+                                **dashboard_args
+                            )
 
                 self._is_processing_items = False  # Disable auto-refresh
 

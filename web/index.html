@@ -23,18 +23,88 @@
         </div>
     </div>
 
-    <div class="session-bar" id="session-bar" style="display:none;">
+    <div class="session-bar legacy-session-bar" id="session-bar" style="display:none;">
         <span id="session-user-label"></span>
         <button type="button" class="btn btn-secondary" onclick="handleLogout()">Log Out</button>
     </div>
 
     <div class="container" id="app-container" style="display:none;">
+        <div class="app-shell">
+            <aside class="workspace-sidebar">
+                <div class="workspace-brand">
+                    <button type="button" class="workspace-brand-mark" onclick="switchWorkspaceView('addons')">MF</button>
+                    <div>
+                        <p class="workspace-eyebrow">Streams Prefetcher</p>
+                        <h1 id="sidebar-page-title" class="workspace-title">Misterfetcher</h1>
+                        <p class="workspace-copy">Private addons, per-user catalogs, compact settings, and a clearer run center.</p>
+                    </div>
+                </div>
+
+                <section class="workspace-account-card">
+                    <p class="workspace-eyebrow">Account</p>
+                    <div class="workspace-account-row">
+                        <div class="workspace-account-avatar" id="sidebar-avatar">MF</div>
+                        <strong id="sidebar-account-name">guest</strong>
+                    </div>
+                    <div class="workspace-account-health">
+                        <div class="workspace-health-row">
+                            <span>Catalog linked</span>
+                            <button type="button" class="workspace-health-action" id="sidebar-catalog-action" onclick="switchWorkspaceView('addons')">
+                                <span class="workspace-health-led is-red" id="sidebar-catalog-led"></span>
+                                <strong id="sidebar-catalog-text">Add manifest</strong>
+                            </button>
+                        </div>
+                        <div class="workspace-health-row">
+                            <span>Aiostream linked</span>
+                            <button type="button" class="workspace-health-action" id="sidebar-stream-action" onclick="switchWorkspaceView('addons')">
+                                <span class="workspace-health-led is-red" id="sidebar-stream-led"></span>
+                                <strong id="sidebar-stream-text">Add manifest</strong>
+                            </button>
+                        </div>
+                        <div class="workspace-health-row">
+                            <span>Catalogs selected</span>
+                            <strong class="workspace-health-value" id="sidebar-selected-catalog-count">0</strong>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-secondary workspace-logout-btn" onclick="handleLogout()">Log Out</button>
+                </section>
+
+                <nav class="workspace-nav">
+                    <button type="button" class="workspace-nav-item active" data-view-target="addons" onclick="switchWorkspaceView('addons')">
+                        <span class="workspace-nav-index">01</span>
+                        <strong>Addons</strong>
+                        <small>JSON sources</small>
+                    </button>
+                    <button type="button" class="workspace-nav-item" data-view-target="catalogs" onclick="switchWorkspaceView('catalogs')">
+                        <span class="workspace-nav-index">02</span>
+                        <strong>Catalogs</strong>
+                        <small>Private selection</small>
+                    </button>
+                    <button type="button" class="workspace-nav-item" data-view-target="settings" onclick="switchWorkspaceView('settings')">
+                        <span class="workspace-nav-index">03</span>
+                        <strong>Settings</strong>
+                        <small>Limits and network</small>
+                    </button>
+                    <button type="button" class="workspace-nav-item" data-view-target="schedule" onclick="switchWorkspaceView('schedule')">
+                        <span class="workspace-nav-index">04</span>
+                        <strong>Schedule</strong>
+                        <small>Days and hour</small>
+                    </button>
+                    <button type="button" class="workspace-nav-item" data-view-target="run" onclick="switchWorkspaceView('run')">
+                        <span class="workspace-nav-index">05</span>
+                        <strong>Run Center</strong>
+                        <small>Status and logs</small>
+                    </button>
+                </nav>
+            </aside>
+
+            <main class="workspace-main">
         <header>
             <h1 id="page-title" style="cursor: pointer; user-select: none;"><span class="lightning-emoji">⚡</span> Streams Prefetcher</h1>
         </header>
 
         <!-- Addons Section - Collapsible -->
-        <section id="addons" class="card">
+        <section id="addons" class="card workspace-panel" data-view="addons">
             <div class="section-header-collapsible" onclick="toggleSection('addons')">
                 <span class="collapse-icon collapsed" id="addons-icon">▶</span>
                 <h2>🧩 Addons</h2>
@@ -67,7 +137,7 @@
                                 <!-- Catalog Section -->
                                 <div class="addon-section" data-type="catalog">
                                     <h4>
-                                        Catalog Only
+                                        Addon Catalog
                                         <span class="info-icon" data-tooltip="Addons that only provide catalog listings (content discovery). Use with separate stream addons."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                                 <circle cx="12" cy="12" r="10"></circle>
                                                 <path d="M12 16v-4M12 8h.01"></path>
@@ -79,14 +149,14 @@
                                             <line x1="12" y1="5" x2="12" y2="19"></line>
                                             <line x1="5" y1="12" x2="19" y2="12"></line>
                                         </svg>
-                                        Add URL
+                                        Add Catalog JSON
                                     </button>
                                 </div>
 
                                 <!-- Stream Section -->
                                 <div class="addon-section" data-type="stream">
                                     <h4>
-                                        Stream Only
+                                        Aiostream
                                         <span class="info-icon" data-tooltip="Addons that only provide stream links. Must be paired with catalog addons."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                                 <circle cx="12" cy="12" r="10"></circle>
                                                 <path d="M12 16v-4M12 8h.01"></path>
@@ -98,7 +168,7 @@
                                             <line x1="12" y1="5" x2="12" y2="19"></line>
                                             <line x1="5" y1="12" x2="19" y2="12"></line>
                                         </svg>
-                                        Add URL
+                                        Add Aiostream JSON
                                     </button>
                                 </div>
                             </div>
@@ -110,7 +180,7 @@
         </section>
 
         <!-- Configuration Section - Collapsible -->
-        <section id="configuration" class="card">
+        <section id="configuration" class="card workspace-panel" data-view="settings">
             <div class="section-header-collapsible" onclick="toggleSection('configuration')">
                 <span class="collapse-icon collapsed" id="configuration-icon">▶</span>
                 <h2>⚙️ Configuration</h2>
@@ -127,7 +197,7 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="movies-global-limit">
-                                    Movies Global Limit
+                                    Total movies per run
                                     <span class="info-icon" data-tooltip="Total maximum number of movie items to prefetch across all catalogs. Check 'Unlimited' for no limit.
 
 Default: <strong>Unlimited</strong>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -144,7 +214,7 @@ Default: <strong>Unlimited</strong>"><svg viewBox="0 0 24 24" fill="none" stroke
 
                             <div class="form-group">
                                 <label for="episodes-global-limit">
-                                    Episodes Global Limit
+                                    Total series per run
                                     <span class="info-icon" data-tooltip="Total maximum number of episode items to prefetch across all catalogs. Check 'Unlimited' for no limit.
 
 Default: <strong>Unlimited</strong>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -163,7 +233,7 @@ Default: <strong>Unlimited</strong>"><svg viewBox="0 0 24 24" fill="none" stroke
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="movies-per-catalog">
-                                    Movies to Prefetch per Catalog
+                                    Movies per catalog
                                     <span class="info-icon" data-tooltip="Maximum number of movie items to prefetch from each movie catalog. Check 'Unlimited' for no limit.
 
 Default: <strong>50</strong>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -212,7 +282,7 @@ Default: <strong>Unlimited</strong>"><svg viewBox="0 0 24 24" fill="none" stroke
 
                             <div class="form-group">
                                 <label for="episodes-per-catalog">
-                                    Episodes to Prefetch per Catalog
+                                    Series per catalog
                                     <span class="info-icon" data-tooltip="Maximum number of episode items to prefetch from each series catalog. Check 'Unlimited' for no limit.
 
 Default: <strong>50</strong>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -225,6 +295,7 @@ Default: <strong>50</strong>"><svg viewBox="0 0 24 24" fill="none" stroke="curre
                                     <input type="checkbox" id="episodes-per-catalog-unlimited" onchange="toggleUnlimited('episodes-per-catalog')">
                                     Unlimited
                                 </label>
+                                <p class="help-text">Episodes per series are locked to <strong>0</strong>. Only the series item is prefetched.</p>
                             </div>
 
                             <!-- Series Fetch Limit - Right After Series Prefetch Limit -->
@@ -262,15 +333,15 @@ Default: <strong>Unlimited</strong>"><svg viewBox="0 0 24 24" fill="none" stroke
 
                         <div class="form-group">
                             <label for="episodes-per-mixed-catalog">
-                                Items to Prefetch per Mixed Catalog
+                                Mixed per catalog
                                 <span class="info-icon" data-tooltip="Maximum number of items to prefetch from mixed catalogs. Each item is either a single movie or a single episode (not an entire series). Check 'Unlimited' for no limit.
 
-Default: <strong>20</strong>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+Default: <strong>50</strong>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                                 <circle cx="12" cy="12" r="10"></circle>
                                                 <path d="M12 16v-4M12 8h.01"></path>
                                             </svg></span>
                             </label>
-                            <input type="number" id="episodes-per-mixed-catalog" value="20" min="0" style="max-width: 200px;">
+                            <input type="number" id="episodes-per-mixed-catalog" value="50" min="0" style="max-width: 200px;">
                             <div style="margin-top: 8px;">
                                 <label class="checkbox-label">
                                     <input type="checkbox" id="episodes-per-mixed-catalog-unlimited" onchange="toggleUnlimited('episodes-per-mixed-catalog')">
@@ -358,12 +429,9 @@ Default: <strong>2 seconds</strong>"><svg viewBox="0 0 24 24" fill="none" stroke
                                             </svg></span>
                             </label>
                             <div class="time-input">
-                                <input type="number" id="delay-value" value="2" min="0" step="0.1">
+                                <input type="number" id="delay-value" value="2" min="1" max="5" step="0.1">
                                 <select id="delay-unit">
-                                    <option value="0.001">Milliseconds</option>
                                     <option value="1" selected>Seconds</option>
-                                    <option value="60">Minutes</option>
-                                    <option value="3600">Hours</option>
                                 </select>
                             </div>
                             <label class="checkbox-label">
@@ -620,7 +688,7 @@ Default: <strong>Disabled</strong>"><svg viewBox="0 0 24 24" fill="none" stroke=
             </div>
         </section>
         <!-- Catalog Selection Section -->
-        <section id="catalog-selection" class="card">
+        <section id="catalog-selection" class="card workspace-panel" data-view="catalogs">
             <div class="section-header-collapsible" onclick="toggleSection('catalog-selection')">
                 <span class="collapse-icon collapsed" id="catalog-selection-icon">▶</span>
                 <h2>🎬 Catalog Selection</h2>
@@ -662,6 +730,16 @@ Default: <strong>Disabled</strong>"><svg viewBox="0 0 24 24" fill="none" stroke=
                 <span class="catalog-type-filter-status" id="catalog-filter-status"></span>
             </div>
 
+            <div id="catalog-search-row" style="display: none; margin-top: 14px;">
+                <input
+                    type="search"
+                    id="catalog-search-input"
+                    class="addon-url-input"
+                    placeholder="Search catalogs, for example: new movie"
+                    oninput="setCatalogSearchQuery(this.value)"
+                >
+            </div>
+
             <div id="catalog-list-container" style="display: none; margin-top: 20px;">
                 <div id="catalog-list" class="catalog-list"></div>
                 <p style="margin-top: 15px; font-size: 13px; color: var(--text-muted); text-align: center;">
@@ -672,7 +750,7 @@ Default: <strong>Disabled</strong>"><svg viewBox="0 0 24 24" fill="none" stroke=
         </section>
 
         <!-- Scheduling Section -->
-        <section id="schedule" class="card">
+        <section id="schedule" class="card workspace-panel" data-view="schedule">
             <div class="section-header-collapsible">
                 <span class="collapse-icon collapsed" id="schedule-icon" onclick="toggleSection('schedule')">▶</span>
                 <h2 onclick="toggleSection('schedule')" style="cursor: pointer; flex: 1;">📅 Scheduling</h2>
@@ -697,6 +775,60 @@ Default: <strong>Disabled</strong>"><svg viewBox="0 0 24 24" fill="none" stroke=
             </div>
 
             <div id="scheduling-settings" class="scheduling-disabled" style="margin-top: 20px;">
+                <div id="schedule-inline-editor" class="schedule-editor">
+                    <div class="form-group">
+                        <label for="schedule-time-inline">Run Time</label>
+                        <input type="time" id="schedule-time-inline" value="02:00" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Days of Week</label>
+                        <div class="days-selection">
+                            <button type="button" class="btn btn-sm" onclick="selectAllDays()">Select All</button>
+                            <button type="button" class="btn btn-sm" onclick="deselectAllDays()">Clear</button>
+                        </div>
+                        <div class="days-grid">
+                            <label class="day-checkbox">
+                                <input type="checkbox" name="inline-day" value="1">
+                                <span>Mon</span>
+                            </label>
+                            <label class="day-checkbox">
+                                <input type="checkbox" name="inline-day" value="2">
+                                <span>Tue</span>
+                            </label>
+                            <label class="day-checkbox">
+                                <input type="checkbox" name="inline-day" value="3">
+                                <span>Wed</span>
+                            </label>
+                            <label class="day-checkbox">
+                                <input type="checkbox" name="inline-day" value="4">
+                                <span>Thu</span>
+                            </label>
+                            <label class="day-checkbox">
+                                <input type="checkbox" name="inline-day" value="5">
+                                <span>Fri</span>
+                            </label>
+                            <label class="day-checkbox">
+                                <input type="checkbox" name="inline-day" value="6">
+                                <span>Sat</span>
+                            </label>
+                            <label class="day-checkbox">
+                                <input type="checkbox" name="inline-day" value="0">
+                                <span>Sun</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="schedule-editor-actions">
+                        <button type="button" class="btn btn-primary" onclick="saveScheduleFromModal()" id="schedule-save-btn">
+                            Add Schedule
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="closeScheduleModal()" id="schedule-cancel-btn" style="display: none;">
+                            Cancel Edit
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Add Schedule Button -->
                 <button type="button" class="btn btn-primary" onclick="showAddScheduleModal()" id="add-schedule-btn" disabled>
                     + Add Schedule
@@ -714,7 +846,7 @@ Default: <strong>Disabled</strong>"><svg viewBox="0 0 24 24" fill="none" stroke=
             </div>
 
             <!-- Collapsible Warnings -->
-            <div style="margin-top: 24px;">
+            <div style="display: none; margin-top: 24px;">
                 <!-- Timezone Warning -->
                 <div class="collapsible-warning-box info-box-collapsible">
                     <div class="warning-box-header" onclick="toggleWarningBox('timezone-warning')">
@@ -813,7 +945,7 @@ Default: <strong>Disabled</strong>"><svg viewBox="0 0 24 24" fill="none" stroke=
         </div>
 
         <!-- Job Status Section -->
-        <section id="job-status" class="card job-status-card">
+        <section id="job-status" class="card job-status-card workspace-panel" data-view="run">
             <h2>🚀 Prefetch Status</h2>
 
             <!-- DEBUG PANEL (Hidden by default - Long-press ⚡ to toggle) -->
@@ -989,13 +1121,7 @@ Default: <strong>Disabled</strong>"><svg viewBox="0 0 24 24" fill="none" stroke=
                         Pause
                     </button>
 
-                    <button type="button" class="btn-modern btn-terminate" id="terminate-btn"
-                            onmousedown="startTerminateCountdown()"
-                            onmouseup="resetTerminateButton()"
-                            onmouseleave="resetTerminateButton()"
-                            ontouchstart="startTerminateCountdown()"
-                            ontouchend="resetTerminateButton()"
-                            ontouchcancel="resetTerminateButton()">
+                    <button type="button" class="btn-modern btn-terminate" id="terminate-btn" onclick="confirmTerminateJob()">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="12" cy="12" r="10"></circle>
                             <line x1="15" y1="9" x2="9" y2="15"></line>
@@ -1252,7 +1378,7 @@ Default: <strong>Disabled</strong>"><svg viewBox="0 0 24 24" fill="none" stroke=
         </section>
 
         <!-- Log Files Viewer Section -->
-        <section id="log-viewer" class="card">
+        <section id="log-viewer" class="card workspace-panel" data-view="run">
             <div class="section-header-collapsible" onclick="toggleLogSection()">
                 <span class="collapse-icon collapsed" id="log-viewer-icon">▼</span>
                 <h2>📄 View Log Files</h2>
@@ -1298,7 +1424,7 @@ Default: <strong>Disabled</strong>"><svg viewBox="0 0 24 24" fill="none" stroke=
         </section>
 
         <!-- Reset to Defaults Section -->
-        <section class="reset-section">
+        <section class="reset-section workspace-panel" data-view="maintenance">
             <button type="button" class="btn-reset" id="reset-all-btn"
                     onmousedown="startResetCountdown()"
                     onmouseup="cancelResetCountdown()"
@@ -1310,9 +1436,11 @@ Default: <strong>Disabled</strong>"><svg viewBox="0 0 24 24" fill="none" stroke=
             </button>
         </section>
 
-        <footer>
+        <footer class="workspace-panel" data-view="maintenance">
             <p>Streams Prefetcher v0.15.0</p>
         </footer>
+            </main>
+        </div>
     </div>
 
     <!-- Catalog ID utilities must be loaded before app.js -->

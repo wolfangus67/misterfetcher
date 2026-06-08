@@ -9,7 +9,7 @@ from typing import Callable, Optional, Dict, Any, List, Tuple
 from streams_prefetcher_filtered import FilteredStreamsPrefetcher
 from config_manager import ConfigManager
 from addon import addon_list_from_config, addon_list_to_config, Addon
-from catalog_id_utils import get_catalog_id_part, get_catalog_type_part
+from catalog_id_utils import get_addon_url_part, get_catalog_id_part, get_catalog_type_part
 from logger import get_logger
 
 # Initialize logger for this module
@@ -54,17 +54,18 @@ class StreamsPrefetcherWrapper:
         logger.debug(f"🗺️ [WRAPPER] Catalogs mapped to {len(addon_catalog_map)} addon URLs")
 
 
-        # Build catalog filter (tuples of catalog_id and type to include)
-        # This ensures movie and series catalogs with the same ID are treated distinctly
+        # Build catalog filter (tuples of addon_url, catalog_id and type to include)
+        # This keeps selections scoped to the exact addon source.
         catalog_filter = []
         for cat in enabled_catalogs:
             # Extract catalog ID and type from the full ID (format: "addon_url|catalog_id|catalog_type")
+            addon_url = get_addon_url_part(cat['id']) or cat.get('addon_url', '')
             catalog_id = get_catalog_id_part(cat['id'])
             catalog_type = get_catalog_type_part(cat['id'])
             logger.debug(f"   • Catalog: {cat.get('name', 'Unknown')} -> ID: {catalog_id}, Type: {catalog_type}")
-            if catalog_id and catalog_type:
-                # Store as tuple (catalog_id, type) to distinguish movie vs series catalogs
-                catalog_filter.append((catalog_id, catalog_type))
+            if addon_url and catalog_id and catalog_type:
+                # Include addon URL so identical catalog IDs in different addons do not all match.
+                catalog_filter.append((addon_url, catalog_id, catalog_type))
         logger.info(f"🔍 [WRAPPER] Built catalog filter with {len(catalog_filter)} entries")
 
         # Get cache_uncached_streams config

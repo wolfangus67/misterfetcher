@@ -15,6 +15,7 @@ from typing import Dict, Any
 from flask import Flask, jsonify, request, send_from_directory, Response, session, stream_with_context
 from flask_cors import CORS
 from croniter import croniter
+import pytz
 
 # Add src directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -101,7 +102,7 @@ def get_user_job_scheduler(user_id: str) -> JobScheduler:
 # VALIDATION FUNCTIONS
 # ============================================================================
 
-def validate_addon_urls(addon_urls):
+def validate_addon_urls(addon_urls, require_runnable=True):
     """Validate addon URLs list"""
     from addon import addon_list_from_config
 
@@ -118,15 +119,14 @@ def validate_addon_urls(addon_urls):
         errors.append(f'Failed to parse addon configuration: {str(e)}')
         return errors
 
-    # Check for at least one catalog addon
-    has_catalog = any(addon.type in ['catalog', 'both'] for addon in addons)
-    if not has_catalog:
-        errors.append('At least one catalog addon (type "catalog" or "both") is required')
+    if require_runnable:
+        has_catalog = any(addon.type in ['catalog', 'both'] for addon in addons)
+        if not has_catalog:
+            errors.append('At least one catalog addon (type "catalog" or "both") is required')
 
-    # Check for at least one stream addon
-    has_stream = any(addon.type in ['stream', 'both'] for addon in addons)
-    if not has_stream:
-        errors.append('At least one stream addon (type "stream" or "both") is required')
+        has_stream = any(addon.type in ['stream', 'both'] for addon in addons)
+        if not has_stream:
+            errors.append('At least one stream addon (type "stream" or "both") is required')
 
     # Validate each addon using Addon object properties
     for idx, addon in enumerate(addons):
@@ -195,12 +195,12 @@ def validate_time_fields(config):
 
     return errors
 
-def validate_configuration(config):
+def validate_configuration(config, require_runnable=True):
     """Validate entire configuration"""
     all_errors = []
 
     addon_urls = config.get('addon_urls', [])
-    all_errors.extend(validate_addon_urls(addon_urls))
+    all_errors.extend(validate_addon_urls(addon_urls, require_runnable=require_runnable))
     all_errors.extend(validate_limits(config))
     all_errors.extend(validate_time_fields(config))
 
@@ -355,7 +355,7 @@ def update_config():
         data = config_manager._migrate_series_to_episode_limits(data)
 
         # Validate configuration
-        validation_errors = validate_configuration(data)
+        validation_errors = validate_configuration(data, require_runnable=False)
         if validation_errors:
             return jsonify({
                 'success': False,
@@ -783,6 +783,15 @@ def update_schedule():
 
         enabled = data.get('enabled', False)
         schedules = data.get('schedules', [])
+        timezone_str = data.get('timezone') or 'UTC'
+
+        try:
+            pytz.timezone(timezone_str)
+        except Exception:
+            return jsonify({
+                'success': False,
+                'error': f'Invalid timezone: {timezone_str}'
+            }), 400
 
         # Validate schedules format
         if enabled and schedules:
@@ -824,7 +833,7 @@ def update_schedule():
                         }), 400
 
         # Update schedule
-        success = job_scheduler.update_schedules(enabled, schedules)
+        success = job_scheduler.update_schedules(enabled, schedules, timezone_str)
 
         if success:
             return jsonify({'success': True})

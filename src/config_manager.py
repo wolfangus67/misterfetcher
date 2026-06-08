@@ -23,7 +23,7 @@ class ConfigManager:
         'episodes_global_limit': -1,
         'movies_per_catalog': 50,
         'episodes_per_catalog': 50,
-        'episodes_per_mixed_catalog': 20,
+        'episodes_per_mixed_catalog': 50,
         'delay': 2,  # In seconds
         'network_request_timeout': 30,  # In seconds
         'proxy': '',
@@ -34,7 +34,7 @@ class ConfigManager:
         'enable_logging': False,
         'catalog_selection': {},  # {catalog_id: {enabled: bool, order: int}}
         'schedule': {
-            'enabled': False,
+            'enabled': True,
             'cron_expression': '0 2,5,8 * * *',  # Daily at 2 AM, 5 AM, 8 AM
             'timezone': 'UTC'
         },
@@ -43,13 +43,13 @@ class ConfigManager:
             'cached_stream_regex': '⚡',
             'skip_streams_regex': '',
             'max_successful_cache_requests_per_item': 1,
-            'max_cache_request_attempts_per_item': 3,
+            'max_cache_request_attempts_per_item': 1,
             'max_cache_requests_global': 50,
             'cached_streams_count_threshold': 0
         },
-        'max_movie_items_per_catalog_fetch': -1,
-        'max_series_items_per_catalog_fetch': -1,
-        'max_mixed_items_per_catalog_fetch': -1
+        'max_movie_items_per_catalog_fetch': 50,
+        'max_series_items_per_catalog_fetch': 50,
+        'max_mixed_items_per_catalog_fetch': 50
     }
 
     def __init__(self, config_path: str = 'data/config/config.json', user_id: str = None):
