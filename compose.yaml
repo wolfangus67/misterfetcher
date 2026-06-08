@@ -1,10 +1,10 @@
 services:
   misterfetcher:
     build:
-      context: https://github.com/wolfangus67/misterfetcher.git#main
+      context: .  # <-- On utilise le dossier local actuel au lieu de retélécharger depuis GitHub
       dockerfile: Dockerfile
     container_name: misterfetcher
-    platform: linux/arm64
+    # platform: linux/arm64 # <-- Commenté pour tourner sur ton PC Windows local
     restart: unless-stopped
 
     ports:
@@ -37,7 +37,7 @@ services:
 
 networks:
   webnet:
-    external: true
+    # external: true # <-- Commenté pour que Docker crée le réseau localement s'il n'existe pas
 
 volumes:
   misterfetcher-data:
