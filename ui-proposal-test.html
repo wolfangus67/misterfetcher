@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Misterfetcher UI Proposal</title>
+    <style>
+        :root {
+            --bg: #f3efe6;
+            --paper: rgba(255, 252, 246, 0.92);
+            --paper-strong: #fffaf2;
+            --ink: #1d1c1a;
+            --muted: #6a655b;
+            --line: rgba(40, 34, 24, 0.12);
+            --accent: #b4492d;
+            --accent-soft: #f3d3c7;
+            --olive: #677255;
+            --sky: #c6d9dd;
+            --shadow: 0 18px 60px rgba(62, 44, 18, 0.12);
+            --radius-xl: 28px;
+            --radius-lg: 20px;
+            --radius-md: 14px;
+            --mono: "IBM Plex Mono", "Consolas", monospace;
+            --sans: "Avenir Next", "Segoe UI", sans-serif;
+            --serif: "Iowan Old Style", "Palatino Linotype", serif;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: var(--sans);
+            color: var(--ink);
+            background:
+                radial-gradient(circle at top left, rgba(180, 73, 45, 0.14), transparent 32%),
+                radial-gradient(circle at top right, rgba(103, 114, 85, 0.18), transparent 30%),
+                linear-gradient(180deg, #f7f3eb 0%, #ece5d7 100%);
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(29, 28, 26, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(29, 28, 26, 0.03) 1px, transparent 1px);
+            background-size: 32px 32px;
+            pointer-events: none;
+            opacity: 0.45;
+        }
+
+        .shell {
+            position: relative;
+            z-index: 1;
+            width: min(1380px, calc(100% - 32px));
+            margin: 20px auto;
+            display: grid;
+            grid-template-columns: 300px minmax(0, 1fr);
+            gap: 18px;
+        }
+
+        .sidebar,
+        .panel,
+        .hero-card,
+        .mini-card,
+        .workspace-card {
+            background: var(--paper);
+            border: 1px solid rgba(255, 255, 255, 0.65);
+            backdrop-filter: blur(12px);
+            box-shadow: var(--shadow);
+        }
+
+        .sidebar {
+            border-radius: var(--radius-xl);
+            padding: 22px;
+            display: grid;
+            gap: 18px;
+            align-self: start;
+            position: sticky;
+            top: 20px;
+        }
+
+        .brand {
+            display: grid;
+            gap: 10px;
+        }
+
+        .brand-mark {
+            width: 56px;
+            height: 56px;
+            border-radius: 18px;
+            background: linear-gradient(135deg, #20160e, #b4492d);
+            color: #fff7f1;
+            display: grid;
+            place-items: center;
+            font-size: 24px;
+            box-shadow: 0 16px 26px rgba(180, 73, 45, 0.28);
+        }
+
+        .brand h1 {
+            margin: 0;
+            font-family: var(--serif);
+            font-size: 32px;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }
+
+        .brand p {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        .account-card {
+            background: var(--paper-strong);
+            border: 1px solid var(--line);
+            border-radius: var(--radius-lg);
+            padding: 16px;
+            display: grid;
+            gap: 12px;
+        }
+
+        .eyebrow {
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .account-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .account-user {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, var(--accent-soft), #fff);
+            display: grid;
+            place-items: center;
+            font-weight: 700;
+        }
+
+        .account-meta strong,
+        .nav a strong,
+        .tile strong,
+        .catalog-card strong,
+        .monitor-head strong,
+        .auth-preview strong {
+            display: block;
+            font-size: 14px;
+        }
+
+        .account-meta span,
+        .subtle,
+        .nav a span,
+        .mini-stat span,
+        .catalog-card span,
+        .monitor-head span {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            width: fit-content;
+            padding: 7px 12px;
+            border-radius: 999px;
+            background: #f1efe7;
+            border: 1px solid var(--line);
+            font-size: 12px;
+        }
+
+        .dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 999px;
+            background: var(--olive);
+            box-shadow: 0 0 0 5px rgba(103, 114, 85, 0.16);
+        }
+
+        .nav {
+            display: grid;
+            gap: 8px;
+        }
+
+        .nav a {
+            text-decoration: none;
+            color: inherit;
+            border-radius: 16px;
+            padding: 14px 14px;
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            transition: transform 0.22s ease, background 0.22s ease;
+        }
+
+        .nav a.active,
+        .nav a:hover {
+            background: linear-gradient(135deg, #fff3ea, #f6efe7);
+            transform: translateX(4px);
+        }
+
+        .nav-kicker {
+            font-family: var(--mono);
+            font-size: 11px;
+            color: var(--accent);
+        }
+
+        .main {
+            display: grid;
+            gap: 18px;
+        }
+
+        .hero-card {
+            border-radius: 34px;
+            padding: 30px;
+            display: grid;
+            grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+            gap: 18px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .hero-card::after {
+            content: "";
+            position: absolute;
+            width: 320px;
+            height: 320px;
+            border-radius: 999px;
+            background: radial-gradient(circle, rgba(180, 73, 45, 0.14), transparent 68%);
+            right: -40px;
+            top: -70px;
+            pointer-events: none;
+        }
+
+        .hero-copy {
+            display: grid;
+            gap: 18px;
+        }
+
+        .hero-copy h2 {
+            margin: 0;
+            font-family: var(--serif);
+            font-size: clamp(34px, 5vw, 56px);
+            line-height: 0.98;
+            font-weight: 600;
+            letter-spacing: -0.04em;
+            max-width: 11ch;
+        }
+
+        .hero-copy p {
+            margin: 0;
+            color: var(--muted);
+            max-width: 58ch;
+            line-height: 1.6;
+            font-size: 15px;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            border: 0;
+            border-radius: 999px;
+            padding: 13px 18px;
+            font: inherit;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .btn-primary {
+            background: var(--ink);
+            color: #fff8ef;
+            box-shadow: 0 10px 24px rgba(29, 28, 26, 0.18);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.7);
+            color: var(--ink);
+            border: 1px solid var(--line);
+        }
+
+        .hero-side {
+            display: grid;
+            gap: 12px;
+            align-content: start;
+        }
+
+        .auth-preview {
+            background: rgba(255, 250, 242, 0.92);
+            border: 1px solid rgba(40, 34, 24, 0.08);
+            border-radius: 24px;
+            padding: 18px;
+            display: grid;
+            gap: 12px;
+        }
+
+        .field {
+            display: grid;
+            gap: 6px;
+        }
+
+        .field label {
+            font-size: 12px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .field input {
+            width: 100%;
+            border: 1px solid rgba(40, 34, 24, 0.12);
+            background: #fffdfa;
+            border-radius: 14px;
+            padding: 13px 14px;
+            font: inherit;
+            color: var(--ink);
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 18px;
+        }
+
+        .mini-card {
+            border-radius: 22px;
+            padding: 18px;
+            display: grid;
+            gap: 16px;
+        }
+
+        .mini-top {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .mini-top code {
+            font-family: var(--mono);
+            font-size: 11px;
+            color: var(--accent);
+        }
+
+        .mini-stat strong {
+            font-size: 34px;
+            line-height: 1;
+            margin-bottom: 6px;
+        }
+
+        .mini-bar {
+            height: 10px;
+            border-radius: 999px;
+            background: #ebe3d6;
+            overflow: hidden;
+        }
+
+        .mini-bar span {
+            display: block;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, var(--accent), #d08a74);
+        }
+
+        .workspace-card {
+            border-radius: 30px;
+            padding: 26px;
+            display: grid;
+            gap: 22px;
+        }
+
+        .workspace-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: end;
+            flex-wrap: wrap;
+        }
+
+        .workspace-head h3,
+        .section-title h3 {
+            margin: 0;
+            font-family: var(--serif);
+            font-size: 28px;
+            letter-spacing: -0.03em;
+        }
+
+        .workspace-layout {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            gap: 18px;
+        }
+
+        .panel {
+            border-radius: 24px;
+            padding: 18px;
+            display: grid;
+            gap: 16px;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .filter-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .chip {
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 8px 12px;
+            font-size: 12px;
+            background: #f8f2e8;
+        }
+
+        .chip.active {
+            background: #1d1c1a;
+            color: #fff7ef;
+            border-color: #1d1c1a;
+        }
+
+        .catalog-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .catalog-card {
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.62);
+            display: grid;
+            gap: 10px;
+        }
+
+        .catalog-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: start;
+        }
+
+        .switch {
+            width: 48px;
+            height: 28px;
+            border-radius: 999px;
+            background: #d9d3c8;
+            position: relative;
+            flex: 0 0 auto;
+        }
+
+        .switch::after {
+            content: "";
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            width: 20px;
+            height: 20px;
+            border-radius: 999px;
+            background: white;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+        }
+
+        .switch.on {
+            background: #cfe0c9;
+        }
+
+        .switch.on::after {
+            left: 24px;
+            background: var(--olive);
+        }
+
+        .catalog-meta {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border-radius: 999px;
+            padding: 6px 10px;
+            background: #f0ebe1;
+            font-size: 11px;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .monitor-stack {
+            display: grid;
+            gap: 12px;
+        }
+
+        .monitor-card {
+            border-radius: 20px;
+            background: linear-gradient(180deg, #1f2320, #131513);
+            color: #f5efe3;
+            padding: 16px;
+            display: grid;
+            gap: 14px;
+        }
+
+        .monitor-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .monitor-meter {
+            height: 11px;
+            border-radius: 999px;
+            overflow: hidden;
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .monitor-meter span {
+            display: block;
+            height: 100%;
+            width: 63%;
+            background: linear-gradient(90deg, #f9a16b, #e0562e);
+        }
+
+        .log-card {
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 18px;
+            background: #111311;
+            padding: 14px;
+            font-family: var(--mono);
+            font-size: 12px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .log-line {
+            color: #b5bfaa;
+        }
+
+        .log-line strong {
+            color: #fbf4e7;
+        }
+
+        .proposal-notes {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 18px;
+        }
+
+        .tile {
+            background: rgba(255, 250, 242, 0.78);
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            padding: 18px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .footer-note {
+            width: min(1380px, calc(100% - 32px));
+            margin: 0 auto 22px;
+            padding: 0 4px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        @media (max-width: 1100px) {
+            .shell,
+            .hero-card,
+            .workspace-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                position: static;
+            }
+        }
+
+        @media (max-width: 760px) {
+            body {
+                padding: 10px;
+            }
+
+            .shell,
+            .footer-note {
+                width: 100%;
+            }
+
+            .summary-grid,
+            .proposal-notes,
+            .catalog-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .hero-card,
+            .workspace-card,
+            .sidebar,
+            .mini-card {
+                border-radius: 22px;
+                padding: 18px;
+            }
+
+            .hero-copy h2 {
+                max-width: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="shell">
+        <aside class="sidebar">
+            <section class="brand">
+                <div class="brand-mark">MF</div>
+                <div>
+                    <h1>Misterfetcher</h1>
+                    <p>A warmer, clearer dashboard direction for account-based catalog and prefetch management.</p>
+                </div>
+            </section>
+
+            <section class="account-card">
+                <p class="eyebrow">Session</p>
+                <div class="account-row">
+                    <div class="account-user">
+                        <div class="avatar">WG</div>
+                        <div class="account-meta">
+                            <strong>wolfangus</strong>
+                            <span>Private workspace enabled</span>
+                        </div>
+                    </div>
+                    <div class="status-pill">
+                        <span class="dot"></span>
+                        Synced
+                    </div>
+                </div>
+            </section>
+
+            <nav class="nav">
+                <a class="active" href="#">
+                    <div>
+                        <span class="nav-kicker">01</span>
+                        <strong>Workspace</strong>
+                        <span>Addons, catalogs, limits</span>
+                    </div>
+                </a>
+                <a href="#">
+                    <div>
+                        <span class="nav-kicker">02</span>
+                        <strong>Schedule</strong>
+                        <span>Personal run windows</span>
+                    </div>
+                </a>
+                <a href="#">
+                    <div>
+                        <span class="nav-kicker">03</span>
+                        <strong>Monitor</strong>
+                        <span>Job progress and logs</span>
+                    </div>
+                </a>
+                <a href="#">
+                    <div>
+                        <span class="nav-kicker">04</span>
+                        <strong>Audit</strong>
+                        <span>History and saved runs</span>
+                    </div>
+                </a>
+            </nav>
+        </aside>
+
+        <section class="main">
+            <article class="hero-card">
+                <div class="hero-copy">
+                    <p class="eyebrow">UI direction proposal</p>
+                    <h2>Less control panel, more private media workspace.</h2>
+                    <p>
+                        This concept keeps the same product logic, but reframes it around ownership, personal state,
+                        and task flow. The goal is to make accounts and saved catalogs feel intentional instead of
+                        accidental, while keeping dense controls approachable.
+                    </p>
+                    <div class="hero-actions">
+                        <button class="btn btn-primary">Preview Dashboard Flow</button>
+                        <button class="btn btn-secondary">Compare With Current UI</button>
+                    </div>
+                </div>
+
+                <div class="hero-side">
+                    <div class="auth-preview">
+                        <p class="eyebrow">Account entry</p>
+                        <strong>Private by default</strong>
+                        <div class="field">
+                            <label>Username</label>
+                            <input value="wolfangus" readonly>
+                        </div>
+                        <div class="field">
+                            <label>Password</label>
+                            <input value="secret123" type="password" readonly>
+                        </div>
+                        <div class="hero-actions">
+                            <button class="btn btn-primary">Log In</button>
+                            <button class="btn btn-secondary">Create Account</button>
+                        </div>
+                    </div>
+                    <div class="status-pill">
+                        <span class="dot"></span>
+                        Server-side config isolated per user
+                    </div>
+                </div>
+            </article>
+
+            <section class="summary-grid">
+                <article class="mini-card">
+                    <div class="mini-top">
+                        <div>
+                            <p class="eyebrow">Addons</p>
+                            <code>workspace/addons</code>
+                        </div>
+                        <span class="tag">2 active</span>
+                    </div>
+                    <div class="mini-stat">
+                        <strong>04</strong>
+                        <span>Sources connected to this account</span>
+                    </div>
+                    <div class="mini-bar"><span style="width:58%"></span></div>
+                </article>
+
+                <article class="mini-card">
+                    <div class="mini-top">
+                        <div>
+                            <p class="eyebrow">Catalogs</p>
+                            <code>workspace/catalogs</code>
+                        </div>
+                        <span class="tag">12 saved</span>
+                    </div>
+                    <div class="mini-stat">
+                        <strong>12</strong>
+                        <span>Visible only in this user space</span>
+                    </div>
+                    <div class="mini-bar"><span style="width:72%"></span></div>
+                </article>
+
+                <article class="mini-card">
+                    <div class="mini-top">
+                        <div>
+                            <p class="eyebrow">Schedule</p>
+                            <code>workspace/runs</code>
+                        </div>
+                        <span class="tag">Paused</span>
+                    </div>
+                    <div class="mini-stat">
+                        <strong>02:00</strong>
+                        <span>Next personal run window</span>
+                    </div>
+                    <div class="mini-bar"><span style="width:35%"></span></div>
+                </article>
+            </section>
+
+            <section class="workspace-card">
+                <div class="workspace-head">
+                    <div class="section-title">
+                        <p class="eyebrow">Main workspace</p>
+                        <h3>Catalog ownership should feel obvious.</h3>
+                    </div>
+                    <div class="filter-row">
+                        <span class="chip active">All types</span>
+                        <span class="chip">Home visible</span>
+                        <span class="chip">Movies</span>
+                        <span class="chip">Series</span>
+                    </div>
+                </div>
+
+                <div class="workspace-layout">
+                    <article class="panel">
+                        <div class="panel-header">
+                            <div>
+                                <strong>Catalog workspace</strong>
+                                <div class="subtle">Card-based selection instead of a long dense list.</div>
+                            </div>
+                            <button class="btn btn-secondary">Load Addon Catalogs</button>
+                        </div>
+
+                        <div class="catalog-grid">
+                            <div class="catalog-card">
+                                <div class="catalog-head">
+                                    <div>
+                                        <strong>Cinema Essentials</strong>
+                                        <span>Bingecat AI Assistant</span>
+                                    </div>
+                                    <div class="switch on"></div>
+                                </div>
+                                <div class="catalog-meta">
+                                    <span class="tag">Movie</span>
+                                    <span class="tag">Home</span>
+                                    <span class="tag">Rank 01</span>
+                                </div>
+                                <span>Rich cards make it easier to see what belongs to the current account and what is enabled.</span>
+                            </div>
+
+                            <div class="catalog-card">
+                                <div class="catalog-head">
+                                    <div>
+                                        <strong>Series Radar</strong>
+                                        <span>WolfAio</span>
+                                    </div>
+                                    <div class="switch on"></div>
+                                </div>
+                                <div class="catalog-meta">
+                                    <span class="tag">Series</span>
+                                    <span class="tag">Extras</span>
+                                    <span class="tag">Rank 02</span>
+                                </div>
+                                <span>Metadata chips replace the current wall of small inline details.</span>
+                            </div>
+
+                            <div class="catalog-card">
+                                <div class="catalog-head">
+                                    <div>
+                                        <strong>Weekend Picks</strong>
+                                        <span>Custom private source</span>
+                                    </div>
+                                    <div class="switch"></div>
+                                </div>
+                                <div class="catalog-meta">
+                                    <span class="tag">Mixed</span>
+                                    <span class="tag">Private</span>
+                                    <span class="tag">Rank 03</span>
+                                </div>
+                                <span>Disabled items still look intentional instead of faded-out clutter.</span>
+                            </div>
+
+                            <div class="catalog-card">
+                                <div class="catalog-head">
+                                    <div>
+                                        <strong>Documentary Shelf</strong>
+                                        <span>Curated account preset</span>
+                                    </div>
+                                    <div class="switch on"></div>
+                                </div>
+                                <div class="catalog-meta">
+                                    <span class="tag">Movie</span>
+                                    <span class="tag">Genre</span>
+                                    <span class="tag">Rank 04</span>
+                                </div>
+                                <span>The visual language helps account-local customizations feel valuable.</span>
+                            </div>
+                        </div>
+                    </article>
+
+                    <aside class="monitor-stack">
+                        <article class="monitor-card">
+                            <div class="monitor-head">
+                                <div>
+                                    <strong>Current run</strong>
+                                    <span>Personal workspace only</span>
+                                </div>
+                                <span class="tag">Running</span>
+                            </div>
+                            <div class="monitor-meter"><span></span></div>
+                            <div class="subtle" style="color:#d4cfbe;">
+                                Processing 63% of this account's enabled catalog plan.
+                            </div>
+                        </article>
+
+                        <article class="panel">
+                            <div class="panel-header">
+                                <div>
+                                    <strong>Quick limits</strong>
+                                    <div class="subtle">Short, high-signal summary instead of a huge form wall.</div>
+                                </div>
+                            </div>
+                            <div class="catalog-meta">
+                                <span class="tag">Movies: unlimited</span>
+                                <span class="tag">Episodes: 50</span>
+                                <span class="tag">Delay: 2s</span>
+                                <span class="tag">Cache: 7d</span>
+                            </div>
+                        </article>
+
+                        <article class="log-card">
+                            <div class="log-line"><strong>[12:04]</strong> Account session restored.</div>
+                            <div class="log-line"><strong>[12:05]</strong> Loaded 12 catalogs for this user.</div>
+                            <div class="log-line"><strong>[12:06]</strong> Selected private schedule window.</div>
+                            <div class="log-line"><strong>[12:07]</strong> Prefetch job started on port 5000.</div>
+                        </article>
+                    </aside>
+                </div>
+            </section>
+
+            <section class="proposal-notes">
+                <article class="tile">
+                    <p class="eyebrow">Direction 1</p>
+                    <strong>Account-first framing</strong>
+                    <span>The UI should make “this belongs to me” obvious everywhere, especially for addons and catalogs.</span>
+                </article>
+
+                <article class="tile">
+                    <p class="eyebrow">Direction 2</p>
+                    <strong>Chunk the complexity</strong>
+                    <span>Move away from long admin forms and toward grouped cards, summaries, and progressive detail.</span>
+                </article>
+
+                <article class="tile">
+                    <p class="eyebrow">Direction 3</p>
+                    <strong>Warmer visual language</strong>
+                    <span>Less generic dark dashboard, more crafted workspace with texture, hierarchy, and breathing room.</span>
+                </article>
+            </section>
+        </section>
+    </main>
+
+    <p class="footer-note">
+        This is a standalone visual proposal only. It does not modify the app code or connect to the real backend.
+    </p>
+</body>
+</html>

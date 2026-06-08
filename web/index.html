@@ -7,7 +7,28 @@
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-    <div class="container">
+    <div class="auth-card" id="auth-card" style="display:none;">
+        <div class="auth-card-inner">
+            <h2>Account Login</h2>
+            <p>Each account now keeps its own addons, catalogs, and saved configuration on the server.</p>
+            <div class="auth-form">
+                <input id="login-username" type="text" placeholder="Username" autocomplete="username">
+                <input id="login-password" type="password" placeholder="Password" autocomplete="current-password">
+            </div>
+            <div class="auth-actions">
+                <button type="button" class="btn btn-primary" id="login-btn" onclick="handleLogin()">Log In</button>
+                <button type="button" class="btn btn-secondary" id="register-btn" onclick="handleRegister()">Create Account</button>
+            </div>
+            <div class="auth-error" id="auth-error" style="display:none;"></div>
+        </div>
+    </div>
+
+    <div class="session-bar" id="session-bar" style="display:none;">
+        <span id="session-user-label"></span>
+        <button type="button" class="btn btn-secondary" onclick="handleLogout()">Log Out</button>
+    </div>
+
+    <div class="container" id="app-container" style="display:none;">
         <header>
             <h1 id="page-title" style="cursor: pointer; user-select: none;"><span class="lightning-emoji">⚡</span> Streams Prefetcher</h1>
         </header>

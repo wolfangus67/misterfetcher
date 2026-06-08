@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Misterfetcher Live Demo</title>
+    <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="brand-block">
+                <button class="brand-mark brand-home" id="brandHomeButton" aria-label="Go to addons">MF</button>
+                <div>
+                    <p class="eyebrow">Live Demo</p>
+                    <h1>Misterfetcher</h1>
+                    <p class="sidebar-copy">Private addons, per-user catalogs, and compact run settings.</p>
+                </div>
+            </div>
+
+            <section class="sidebar-card account-card">
+                <p class="eyebrow">Account</p>
+                <div class="login-form" id="loginForm">
+                    <label>
+                        <span>Username</span>
+                        <input id="usernameInput" type="text" value="wolfangus">
+                    </label>
+                    <label>
+                        <span>Password</span>
+                        <input id="passwordInput" type="password" value="secret123">
+                    </label>
+                    <div class="button-row">
+                        <button class="button primary" id="loginButton">Open Session</button>
+                        <button class="button ghost" id="registerButton">Create Account</button>
+                    </div>
+                </div>
+
+                <div class="account-summary hidden" id="accountSummary">
+                    <div class="account-user">
+                        <div class="avatar" id="avatarBadge">WG</div>
+                        <div>
+                            <strong id="accountName">wolfangus</strong>
+                        </div>
+                    </div>
+                    <div class="account-health">
+                        <div class="health-row">
+                            <span>Catalog manifests detected</span>
+                            <strong id="catalogManifestCount">0</strong>
+                        </div>
+                        <div class="health-row">
+                            <span>Aiostream linked</span>
+                            <div class="health-status" id="streamLinkAction">
+                                <span class="status-led status-led-red" id="streamLinkLed"></span>
+                                <strong id="streamLinkText">Missing manifest</strong>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="button ghost full" id="logoutButton">Leave Demo Session</button>
+                </div>
+            </section>
+
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-target="addons">
+                    <span class="nav-kicker">01</span>
+                    <strong>Addons</strong>
+                    <small>JSON sources</small>
+                </button>
+                <button class="nav-item" data-target="catalogs">
+                    <span class="nav-kicker">02</span>
+                    <strong>Catalogs</strong>
+                    <small>Private selection</small>
+                </button>
+                <button class="nav-item" data-target="settings">
+                    <span class="nav-kicker">03</span>
+                    <strong>Settings</strong>
+                    <small>Limits and schedule</small>
+                </button>
+                <button class="nav-item" data-target="run">
+                    <span class="nav-kicker">04</span>
+                    <strong>Run Center</strong>
+                    <small>Prefetch monitor</small>
+                </button>
+            </nav>
+        </aside>
+
+        <main class="main-column">
+            <section class="section-panel section-active" data-section="addons">
+                <div class="panel-card">
+                    <div class="panel-head">
+                        <div>
+                            <p class="eyebrow">Addons</p>
+                            <h2>Attach catalog and aiostream JSON sources.</h2>
+                        </div>
+                        <div class="toolbar">
+                            <button class="button ghost" id="addCatalogAddonButton">Add Catalog JSON</button>
+                            <button class="button ghost" id="addStreamAddonButton">Add Aiostream JSON</button>
+                        </div>
+                    </div>
+                    <div class="inline-feedback hidden" id="addonFeedback"></div>
+                    <div class="addon-sections" id="addonGrid"></div>
+                </div>
+            </section>
+
+            <section class="section-panel section-hidden" data-section="catalogs">
+                <div class="panel-card">
+                    <div class="panel-head">
+                        <div>
+                            <p class="eyebrow">Catalogs</p>
+                            <h2>Choose which catalogs this account uses.</h2>
+                        </div>
+                        <div class="toolbar">
+                            <button class="filter-chip active" data-filter="all">All</button>
+                            <button class="filter-chip" data-filter="movie">Movies</button>
+                            <button class="filter-chip" data-filter="series">Series</button>
+                            <button class="filter-chip" data-filter="mixed">Mixed</button>
+                            <button class="filter-chip" data-filter="home">Home only</button>
+                        </div>
+                    </div>
+                    <div class="table-shell catalog-table" id="catalogGrid"></div>
+                </div>
+            </section>
+
+            <section class="section-panel section-hidden" data-section="settings">
+                <div class="panel-card">
+                    <div class="panel-head">
+                        <div>
+                            <p class="eyebrow">Settings</p>
+                            <h2>Configure limits before launching a run.</h2>
+                        </div>
+                    </div>
+
+                    <div class="settings-grid compact">
+                        <label>
+                            <span>Movies per catalog</span>
+                            <input id="moviesPerCatalogInput" type="number" min="1" value="50">
+                        </label>
+                        <label>
+                            <span>Series per catalog</span>
+                            <input id="seriesPerCatalogInput" type="number" min="1" value="50">
+                        </label>
+                        <label>
+                            <span>Mixed per catalog</span>
+                            <input id="mixedPerCatalogInput" type="number" min="1" value="50">
+                        </label>
+                        <label>
+                            <span>Delay between requests</span>
+                            <input id="delayInput" type="range" min="1" max="5" step="1" value="2">
+                            <strong class="range-value" id="delayValue">2s</strong>
+                        </label>
+                        <label class="settings-span-2">
+                            <span>Total items per run</span>
+                            <input id="runLimitInput" type="text" value="Unlimited">
+                        </label>
+                    </div>
+
+                    <div class="note-row">
+                        <span class="tag">episodes per series: 0</span>
+                        <p class="muted">Series are prefetched, but episodes stay at 0 to avoid too many requests.</p>
+                    </div>
+
+                    <div class="schedule-box">
+                        <div class="schedule-toggle-row">
+                            <div>
+                                <p class="eyebrow">Schedule</p>
+                                <strong>Enable scheduler</strong>
+                            </div>
+                            <button class="toggle on" id="scheduleToggle" aria-label="Toggle schedule"></button>
+                        </div>
+                        <div class="days-picker" id="daysPicker"></div>
+                        <label class="time-field">
+                            <span>Run time</span>
+                            <input id="runTimeInput" type="time" value="02:00">
+                        </label>
+                    </div>
+
+                    <div class="button-row">
+                        <button class="button primary" id="applySettingsButton">Apply Demo Settings</button>
+                        <button class="button ghost" id="randomizeButton">Randomize Preview</button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section-panel section-hidden" data-section="run">
+                <div class="run-layout compact">
+                    <div class="run-top-grid">
+                        <article class="panel-card">
+                            <div class="panel-head">
+                                <div>
+                                    <p class="eyebrow">Run Center</p>
+                                    <h2 id="runTitle">Ready to prefetch</h2>
+                                </div>
+                                <span class="status-pill" id="runStatusPill">Idle</span>
+                            </div>
+
+                            <button class="run-alert hidden" id="runAlert" type="button">
+                                <strong id="runAlertTitle">Missing aiostream addon</strong>
+                                <span id="runAlertText">Click here to open Addons and add the missing manifest.</span>
+                            </button>
+
+                            <div class="run-stats">
+                                <div class="run-stat">
+                                    <span>Catalog</span>
+                                    <strong id="currentCatalogLabel">None</strong>
+                                </div>
+                                <div class="run-stat">
+                                    <span>Movie prefetched</span>
+                                    <strong id="moviesPrefetched">0</strong>
+                                </div>
+                                <div class="run-stat">
+                                    <span>Series prefetched</span>
+                                    <strong id="seriesPrefetched">0</strong>
+                                </div>
+                                <div class="run-stat">
+                                    <span>Total prefetched</span>
+                                    <strong id="totalPrefetched">0</strong>
+                                </div>
+                                <div class="run-stat run-stat-wide">
+                                    <span>Total already prefetched</span>
+                                    <strong id="totalAlreadyPrefetched">0</strong>
+                                </div>
+                            </div>
+
+                            <div class="meter-shell">
+                                <div class="meter-bar">
+                                    <span id="meterProgress"></span>
+                                </div>
+                                <div class="meter-labels">
+                                    <span>Progress</span>
+                                    <strong id="meterPercent">0%</strong>
+                                </div>
+                            </div>
+
+                            <div class="button-row">
+                                <button class="button primary" id="startRunButton">Start Demo Run</button>
+                                <button class="button ghost" id="stopRunButton">Reset</button>
+                            </div>
+                        </article>
+
+                        <article class="panel-card">
+                            <div class="panel-head">
+                                <div>
+                                    <p class="eyebrow">Current item</p>
+                                    <h2>Poster preview</h2>
+                                </div>
+                            </div>
+                            <div class="poster-card" id="posterCard">
+                                <div class="poster-art" id="posterArt">
+                                    <div class="poster-badge" id="posterType">Movie</div>
+                                    <div class="poster-title-block">
+                                        <strong id="posterTitle">Waiting for run</strong>
+                                        <span id="posterSubtitle">No title currently being prefetched</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </article>
+                    </div>
+
+                    <article class="panel-card run-log-card">
+                        <div class="panel-head">
+                            <div>
+                                <p class="eyebrow">Logs</p>
+                                <h2>Activity log</h2>
+                            </div>
+                        </div>
+                        <div class="log-stream" id="logStream"></div>
+                    </article>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="./app.js"></script>
+</body>
+</html>

@@ -8,10 +8,11 @@ import sys
 import json
 import time
 import queue
+from collections import defaultdict
 import requests
 from datetime import datetime
 from typing import Dict, Any
-from flask import Flask, jsonify, request, send_from_directory, Response
+from flask import Flask, jsonify, request, send_from_directory, Response, session, stream_with_context
 from flask_cors import CORS
 from croniter import croniter
 
@@ -22,49 +23,78 @@ from config_manager import ConfigManager
 from job_scheduler import JobScheduler, JobStatus
 from logger import setup_logging, get_logger
 from catalog_id_utils import create_catalog_id
+from user_manager import UserManager
 
 # Initialize logging
 setup_logging()
 logger = get_logger('streams_prefetcher.web_app')
 
 app = Flask(__name__, static_folder='../web', static_url_path='')
-CORS(app)
+app.secret_key = os.environ.get('STREAMS_PREFETCHER_SECRET_KEY', 'streams-prefetcher-dev-secret')
+CORS(app, supports_credentials=True)
 
 # Suppress Flask's default logging, use our logger instead
 import logging
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.WARNING)
 
-# Initialize managers
-config_manager = ConfigManager()
-job_scheduler = JobScheduler(config_manager)
-
-# Event queues for SSE
-event_queues = []
+user_manager = UserManager()
+config_manager_cache: Dict[str, ConfigManager] = {}
+job_scheduler_cache: Dict[str, JobScheduler] = {}
+event_queues_by_user = defaultdict(list)
 
 
-def broadcast_event(event_type: str, data: Dict[str, Any]):
-    """Broadcast event to all SSE clients"""
-    # Track queues that fail to receive events (likely dead connections)
+def get_current_user():
+    """Return current session user info."""
+    user_id = session.get('user_id')
+    username = session.get('username')
+    if not user_id or not username:
+        return None
+    if not user_manager.get_user(username):
+        session.clear()
+        return None
+    return {'user_id': user_id, 'username': username}
+
+
+def require_auth():
+    """Return session user or an auth error response."""
+    user = get_current_user()
+    if not user:
+        return None, (jsonify({'success': False, 'error': 'Authentication required'}), 401)
+    return user, None
+
+
+def get_user_config_manager(user_id: str) -> ConfigManager:
+    """Get per-user config manager."""
+    if user_id not in config_manager_cache:
+        config_manager_cache[user_id] = ConfigManager(user_id=user_id)
+    return config_manager_cache[user_id]
+
+
+def broadcast_event(user_id: str, event_type: str, data: Dict[str, Any]):
+    """Broadcast event to SSE clients for one user."""
     dead_queues = []
-
-    for q in event_queues:
+    for q in event_queues_by_user.get(user_id, []):
         try:
             q.put({'event': event_type, 'data': data}, block=False)
         except queue.Full:
-            # Queue is full, likely a stale connection - mark for removal
-            logger.warning(f"SSE queue full, marking for removal (likely stale connection)")
             dead_queues.append(q)
 
-    # Remove dead queues immediately to prevent accumulation
     for dead_q in dead_queues:
-        if dead_q in event_queues:
-            event_queues.remove(dead_q)
-            logger.info(f"Removed stale SSE queue. Active queues: {len(event_queues)}")
+        if dead_q in event_queues_by_user.get(user_id, []):
+            event_queues_by_user[user_id].remove(dead_q)
 
 
-# Register callback with job scheduler
-job_scheduler.register_callback(broadcast_event)
+def get_user_job_scheduler(user_id: str) -> JobScheduler:
+    """Get per-user scheduler."""
+    if user_id not in job_scheduler_cache:
+        user_config_manager = get_user_config_manager(user_id)
+        scheduler = JobScheduler(user_config_manager)
+        scheduler.register_callback(
+            lambda event_type, data, uid=user_id: broadcast_event(uid, event_type, data)
+        )
+        job_scheduler_cache[user_id] = scheduler
+    return job_scheduler_cache[user_id]
 
 
 # ============================================================================
@@ -194,6 +224,93 @@ def serve_static(path):
 
 
 # ============================================================================
+# AUTH API
+# ============================================================================
+
+@app.route('/api/auth/me', methods=['GET'])
+def auth_me():
+    """Return the current authenticated user."""
+    user = get_current_user()
+    if not user:
+        return jsonify({'success': True, 'authenticated': False, 'user': None})
+
+    return jsonify({
+        'success': True,
+        'authenticated': True,
+        'user': {
+            'id': user['user_id'],
+            'username': user['username']
+        }
+    })
+
+
+@app.route('/api/auth/register', methods=['POST'])
+def auth_register():
+    """Create a new user account."""
+    try:
+        data = request.get_json() or {}
+        username = str(data.get('username', '')).strip()
+        password = str(data.get('password', ''))
+        user = user_manager.register_user(username, password)
+
+        session.clear()
+        session['user_id'] = user['user_id']
+        session['username'] = user['username']
+
+        get_user_config_manager(user['user_id'])
+
+        return jsonify({
+            'success': True,
+            'user': {
+                'id': user['user_id'],
+                'username': user['username']
+            }
+        })
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Registration failed: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/auth/login', methods=['POST'])
+def auth_login():
+    """Authenticate an existing user."""
+    try:
+        data = request.get_json() or {}
+        username = str(data.get('username', '')).strip()
+        password = str(data.get('password', ''))
+        user = user_manager.authenticate(username, password)
+
+        if not user:
+            return jsonify({'success': False, 'error': 'Invalid username or password'}), 401
+
+        session.clear()
+        session['user_id'] = user['user_id']
+        session['username'] = user['username']
+
+        get_user_config_manager(user['user_id'])
+
+        return jsonify({
+            'success': True,
+            'user': {
+                'id': user['user_id'],
+                'username': user['username']
+            }
+        })
+    except Exception as e:
+        logger.error(f"Login failed: {str(e)}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/auth/logout', methods=['POST'])
+def auth_logout():
+    """Clear current session."""
+    session.clear()
+    return jsonify({'success': True})
+
+
+# ============================================================================
 # CONFIGURATION API
 # ============================================================================
 
@@ -201,6 +318,11 @@ def serve_static(path):
 def get_config():
     """Get current configuration"""
     try:
+        user, auth_error = require_auth()
+        if auth_error:
+            return auth_error
+
+        config_manager = get_user_config_manager(user['user_id'])
         config = config_manager.get_all()
         return jsonify({'success': True, 'config': config})
     except Exception as e:
@@ -211,6 +333,13 @@ def get_config():
 def update_config():
     """Update configuration"""
     try:
+        user, auth_error = require_auth()
+        if auth_error:
+            return auth_error
+
+        config_manager = get_user_config_manager(user['user_id'])
+        job_scheduler = get_user_job_scheduler(user['user_id'])
+
         # Check if job is running
         if job_scheduler.job_status == JobStatus.RUNNING:
             return jsonify({
@@ -249,6 +378,13 @@ def update_config():
 def reset_config():
     """Reset configuration to defaults and clear all data except database"""
     try:
+        user, auth_error = require_auth()
+        if auth_error:
+            return auth_error
+
+        config_manager = get_user_config_manager(user['user_id'])
+        job_scheduler = get_user_job_scheduler(user['user_id'])
+
         # Check if job is running
         if job_scheduler.job_status == JobStatus.RUNNING:
             return jsonify({
@@ -266,22 +402,10 @@ def reset_config():
         config_manager.set('addon_name_cache', {})
         config_manager.set('addon_logo_cache', {})
 
-        # Clear all log files (they contain addon URLs and could be a privacy issue)
-        log_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'logs')
-        if os.path.exists(log_dir):
-            for log_file in os.listdir(log_dir):
-                log_path = os.path.join(log_dir, log_file)
-                if os.path.isfile(log_path) and log_file.endswith('.txt'):
-                    try:
-                        os.remove(log_path)
-                        logger.info(f"Deleted log file: {log_file}")
-                    except Exception as e:
-                        logger.warning(f"Failed to delete log file {log_file}: {e}")
-
         # Disable any active schedule
         job_scheduler.disable_schedule()
 
-        logger.info("Configuration reset completed - all settings cleared, database preserved")
+        logger.info("Configuration reset completed for current user")
 
         return jsonify({'success': True, 'config': config_manager.get_all()})
 
@@ -298,6 +422,11 @@ def reset_config():
 def load_catalogs():
     """Load catalogs from configured addon URLs"""
     try:
+        user, auth_error = require_auth()
+        if auth_error:
+            return auth_error
+
+        config_manager = get_user_config_manager(user['user_id'])
         addon_urls = config_manager.get('addon_urls', [])
 
         if not addon_urls:
@@ -435,6 +564,11 @@ def _get_current_catalog_ids_for_addons(addon_urls):
 def get_catalog_selection():
     """Get saved catalog selection"""
     try:
+        user, auth_error = require_auth()
+        if auth_error:
+            return auth_error
+
+        config_manager = get_user_config_manager(user['user_id'])
         saved_catalogs = config_manager.get('saved_catalogs', [])
         addon_urls = config_manager.get('addon_urls', [])
         current_catalog_ids = _get_current_catalog_ids_for_addons(addon_urls)
@@ -456,6 +590,11 @@ def get_catalog_selection():
 def save_catalog_selection():
     """Save catalog selection and order"""
     try:
+        user, auth_error = require_auth()
+        if auth_error:
+            return auth_error
+
+        config_manager = get_user_config_manager(user['user_id'])
         logger.info("[CATALOG SAVE] ========== SAVE REQUEST RECEIVED ==========")
 
         data = request.get_json()
@@ -501,6 +640,11 @@ def save_catalog_selection():
 def reset_catalog_selections():
     """Reset catalog selections and clear saved catalogs from config"""
     try:
+        user, auth_error = require_auth()
+        if auth_error:
+            return auth_error
+
+        config_manager = get_user_config_manager(user['user_id'])
         # Clear saved catalogs from config
         config_manager.set('saved_catalogs', [])
 
@@ -517,6 +661,11 @@ def reset_catalog_selections():
 def fetch_addon_manifest():
     """Fetch addon manifest and extract name"""
     try:
+        user, auth_error = require_auth()
+        if auth_error:
+            return auth_error
+
+        config_manager = get_user_config_manager(user['user_id'])
         data = request.get_json()
         if not data or 'url' not in data:
             return jsonify({'success': False, 'error': 'No URL provided'}), 400
@@ -600,6 +749,11 @@ def get_timezone():
 def get_schedule():
     """Get schedule information"""
     try:
+        user, auth_error = require_auth()
+        if auth_error:
+            return auth_error
+
+        config_manager = get_user_config_manager(user['user_id'])
         schedule_config = config_manager.get('schedule', {})
 
         return jsonify({
@@ -618,6 +772,11 @@ def get_schedule():
 def update_schedule():
     """Update schedule configuration"""
     try:
+        user, auth_error = require_auth()
+        if auth_error:
+            return auth_error
+
+        job_scheduler = get_user_job_scheduler(user['user_id'])
         data = request.get_json()
         if not data:
             return jsonify({'success': False, 'error': 'No data provided'}), 400
@@ -680,6 +839,11 @@ def update_schedule():
 def disable_schedule():
     """Disable scheduled jobs"""
     try:
+        user, auth_error = require_auth()
+        if auth_error:
+            return auth_error
+
+        job_scheduler = get_user_job_scheduler(user['user_id'])
         job_scheduler.disable_schedule()
         return jsonify({'success': True})
     except Exception as e:
@@ -694,6 +858,11 @@ def disable_schedule():
 def get_job_status():
     """Get current job status"""
     try:
+        user, auth_error = require_auth()
+        if auth_error:
+            return auth_error
+
+        job_scheduler = get_user_job_scheduler(user['user_id'])
         status = job_scheduler.get_status()
         return jsonify({'success': True, 'status': status})
     except Exception as e:
@@ -704,6 +873,13 @@ def get_job_status():
 def run_job():
     """Run a prefetch job manually"""
     try:
+        user, auth_error = require_auth()
+        if auth_error:
+            return auth_error
+
+        config_manager = get_user_config_manager(user['user_id'])
+        job_scheduler = get_user_job_scheduler(user['user_id'])
+
         # Validate configuration before running
         config = config_manager.get_all()
         validation_errors = validate_configuration(config)
@@ -748,6 +924,11 @@ def run_job():
 def cancel_job():
     """Cancel running job"""
     try:
+        user, auth_error = require_auth()
+        if auth_error:
+            return auth_error
+
+        job_scheduler = get_user_job_scheduler(user['user_id'])
         success = job_scheduler.cancel_job()
 
         if success:
@@ -766,6 +947,11 @@ def cancel_job():
 def pause_job():
     """Pause running job"""
     try:
+        user, auth_error = require_auth()
+        if auth_error:
+            return auth_error
+
+        job_scheduler = get_user_job_scheduler(user['user_id'])
         success, message = job_scheduler.pause_job()
 
         if success:
@@ -783,6 +969,11 @@ def pause_job():
 def resume_job():
     """Resume paused job"""
     try:
+        user, auth_error = require_auth()
+        if auth_error:
+            return auth_error
+
+        job_scheduler = get_user_job_scheduler(user['user_id'])
         success, message = job_scheduler.resume_job()
 
         if success:
@@ -800,6 +991,11 @@ def resume_job():
 def reset_job():
     """Reset job status from failed/completed/cancelled to idle"""
     try:
+        user, auth_error = require_auth()
+        if auth_error:
+            return auth_error
+
+        job_scheduler = get_user_job_scheduler(user['user_id'])
         success, message = job_scheduler.reset_job()
 
         if success:
@@ -817,6 +1013,11 @@ def reset_job():
 def get_job_output():
     """Get job output (paginated)"""
     try:
+        user, auth_error = require_auth()
+        if auth_error:
+            return auth_error
+
+        job_scheduler = get_user_job_scheduler(user['user_id'])
         from_line = request.args.get('from_line', 0, type=int)
         output = job_scheduler.get_output(from_line)
 
@@ -833,11 +1034,19 @@ def get_job_output():
 @app.route('/api/events')
 def stream_events():
     """Server-Sent Events endpoint for real-time updates"""
+    user, auth_error = require_auth()
+    if auth_error:
+        return auth_error
+
+    user_id = user['user_id']
+    job_scheduler = get_user_job_scheduler(user_id)
+
+    @stream_with_context
     def event_stream():
         # Create a queue for this client
         q = queue.Queue(maxsize=100)
-        event_queues.append(q)
-        logger.info(f"New SSE connection established. Active connections: {len(event_queues)}")
+        event_queues_by_user[user_id].append(q)
+        logger.info(f"New SSE connection established for {user_id}. Active connections: {len(event_queues_by_user[user_id])}")
 
         try:
             # Send initial connection message
@@ -858,9 +1067,9 @@ def stream_events():
 
         except GeneratorExit:
             # Client disconnected
-            if q in event_queues:
-                event_queues.remove(q)
-                logger.info(f"SSE connection closed (client disconnect). Active connections: {len(event_queues)}")
+            if q in event_queues_by_user[user_id]:
+                event_queues_by_user[user_id].remove(q)
+                logger.info(f"SSE connection closed for {user_id}. Active connections: {len(event_queues_by_user[user_id])}")
 
     return Response(event_stream(), mimetype='text/event-stream')
 
@@ -873,6 +1082,10 @@ def stream_events():
 def list_logs():
     """List all log files"""
     try:
+        _, auth_error = require_auth()
+        if auth_error:
+            return auth_error
+
         logs_dir = os.path.join(os.path.dirname(__file__), '..', 'data', 'logs')
 
         if not os.path.exists(logs_dir):
@@ -904,6 +1117,10 @@ def list_logs():
 def get_log_content(filename):
     """Get content of a specific log file"""
     try:
+        _, auth_error = require_auth()
+        if auth_error:
+            return auth_error
+
         # Security: only allow files starting with streams_prefetcher_logs_
         if not filename.startswith('streams_prefetcher_logs_') or not filename.endswith('.txt'):
             return jsonify({'success': False, 'error': 'Invalid filename'}), 400
@@ -928,6 +1145,10 @@ def get_log_content(filename):
 def delete_log(filename):
     """Delete a specific log file"""
     try:
+        _, auth_error = require_auth()
+        if auth_error:
+            return auth_error
+
         # Security: only allow files starting with streams_prefetcher_logs_
         if not filename.startswith('streams_prefetcher_logs_') or not filename.endswith('.txt'):
             return jsonify({'success': False, 'error': 'Invalid filename'}), 400
@@ -952,6 +1173,10 @@ def delete_log(filename):
 def delete_all_logs():
     """Delete all log files"""
     try:
+        _, auth_error = require_auth()
+        if auth_error:
+            return auth_error
+
         logs_dir = os.path.join(os.path.dirname(__file__), '..', 'data', 'logs')
 
         if not os.path.exists(logs_dir):
@@ -1017,6 +1242,7 @@ if __name__ == '__main__':
     os.makedirs('data/config', exist_ok=True)
     os.makedirs('data/db', exist_ok=True)
     os.makedirs('data/logs', exist_ok=True)
+    os.makedirs('data/users', exist_ok=True)
 
     # Run the application
     port = int(os.environ.get('PORT', 5000))
