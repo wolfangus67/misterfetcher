@@ -105,6 +105,57 @@ header h1 {
     will-change: auto;
 }
 
+.auth-card,
+.session-bar {
+    max-width: 1200px;
+    margin: 0 auto 20px auto;
+    padding: 20px 24px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: linear-gradient(135deg, #0a0e1a, #0f1624, #0a0e1a);
+    box-shadow: var(--card-shadow);
+}
+
+.auth-card-inner {
+    display: grid;
+    gap: 14px;
+}
+
+.auth-card h2 {
+    color: var(--primary-color);
+}
+
+.auth-card p {
+    color: var(--text-muted);
+}
+
+.auth-form,
+.auth-actions,
+.session-bar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.auth-form input {
+    flex: 1 1 240px;
+    min-width: 220px;
+}
+
+.session-bar {
+    justify-content: space-between;
+}
+
+.session-bar span {
+    font-weight: 600;
+}
+
+.auth-error {
+    color: var(--danger-color);
+    font-weight: 600;
+}
+
 /* Animated lightning emoji with white pulsating glow */
 .lightning-emoji {
     display: inline-block;

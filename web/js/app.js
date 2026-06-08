@@ -16,6 +16,7 @@ let nextRunTimestamp = null;
 let executionTimeInterval = null;
 let maxExecutionTime = null;
 let jobStartTime = null;
+let currentUser = null;
 let configSaved = false;
 let configModified = false;
 let catalogSaveTimeout = null;
@@ -143,6 +144,138 @@ function fallbackCopy(text, successCallback) {
     }
 
     document.body.removeChild(textarea);
+}
+
+function setAuthError(message) {
+    const errorEl = document.getElementById('auth-error');
+    if (!errorEl) return;
+
+    if (message) {
+        errorEl.textContent = message;
+        errorEl.style.display = 'block';
+    } else {
+        errorEl.textContent = '';
+        errorEl.style.display = 'none';
+    }
+}
+
+function updateAuthUI() {
+    const authCard = document.getElementById('auth-card');
+    const sessionBar = document.getElementById('session-bar');
+    const appContainer = document.getElementById('app-container');
+    const sessionLabel = document.getElementById('session-user-label');
+    const isAuthenticated = !!currentUser;
+
+    if (authCard) authCard.style.display = isAuthenticated ? 'none' : 'block';
+    if (sessionBar) sessionBar.style.display = isAuthenticated ? 'flex' : 'none';
+    if (appContainer) appContainer.style.display = isAuthenticated ? 'block' : 'none';
+    if (sessionLabel) {
+        sessionLabel.textContent = isAuthenticated ? `Logged in as ${currentUser.username}` : '';
+    }
+}
+
+async function loadAuthState() {
+    try {
+        const response = await fetch('/api/auth/me');
+        const data = await response.json();
+
+        if (data.success && data.authenticated) {
+            currentUser = data.user;
+            localStorage.setItem('last-username', data.user.username);
+            updateAuthUI();
+            return true;
+        }
+    } catch (error) {
+        console.error('Error loading auth state:', error);
+    }
+
+    currentUser = null;
+    updateAuthUI();
+    return false;
+}
+
+async function submitAuth(endpoint, buttonId) {
+    const usernameInput = document.getElementById('login-username');
+    const passwordInput = document.getElementById('login-password');
+    const username = usernameInput ? usernameInput.value.trim() : '';
+    const password = passwordInput ? passwordInput.value : '';
+    const button = document.getElementById(buttonId);
+
+    if (!username) {
+        setAuthError('Username is required.');
+        return false;
+    }
+
+    if (!password) {
+        setAuthError('Password is required.');
+        return false;
+    }
+
+    if (button) {
+        button.disabled = true;
+    }
+
+    try {
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        const data = await response.json();
+
+        if (!data.success) {
+            setAuthError(data.error || 'Authentication failed.');
+            return false;
+        }
+
+        localStorage.setItem('last-username', username);
+        [
+            'dismissed-completion-id',
+            'has-run-prefetch-job',
+            'catalog-selection-configured',
+            'configuration-configured',
+            'addons-configured',
+            'schedule-configured'
+        ].forEach(key => localStorage.removeItem(key));
+        setAuthError('');
+        window.location.reload();
+        return true;
+    } catch (error) {
+        setAuthError(`Authentication error: ${error.message}`);
+        return false;
+    } finally {
+        if (button) {
+            button.disabled = false;
+        }
+    }
+}
+
+async function handleLogin() {
+    await submitAuth('/api/auth/login', 'login-btn');
+}
+
+async function handleRegister() {
+    await submitAuth('/api/auth/register', 'register-btn');
+}
+
+async function handleLogout() {
+    try {
+        await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (error) {
+        console.error('Error logging out:', error);
+    }
+
+    [
+        'dismissed-completion-id',
+        'has-run-prefetch-job',
+        'catalog-selection-configured',
+        'configuration-configured',
+        'addons-configured',
+        'schedule-configured'
+    ].forEach(key => localStorage.removeItem(key));
+    currentUser = null;
+    updateAuthUI();
+    window.location.reload();
 }
 
 function toggleDebugPanel() {
@@ -905,6 +1038,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initialize debug panel (hidden by default, unless localStorage says otherwise)
     initializeDebugPanel();
 
+    const usernameInput = document.getElementById('login-username');
+    const passwordInput = document.getElementById('login-password');
+    if (usernameInput) {
+        usernameInput.value = localStorage.getItem('last-username') || '';
+    }
+    [usernameInput, passwordInput].forEach(input => {
+        if (!input) return;
+        input.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                handleLogin();
+            }
+        });
+    });
+
     // Setup long-press toggle on page title
     setupLongPressToggle();
 
@@ -917,6 +1065,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     addDebugLog(`[PAGE LOAD] Global currentCompletionId: ${currentCompletionId}`);
 
     logStatusScreens();
+
+    const authenticated = await loadAuthState();
+    if (!authenticated) {
+        setAuthError('');
+        addDebugLog('[AUTH] Waiting for login');
+        return;
+    }
 
     // Load saved catalog selection first, before loading config
     addDebugLog('Loading saved catalog selection...');

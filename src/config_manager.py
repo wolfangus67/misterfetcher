@@ -3,8 +3,10 @@ Configuration Manager
 Handles persistence of user configuration to disk
 """
 
+import copy
 import json
 import os
+import re
 from typing import Dict, Any, List, Tuple
 from pathlib import Path
 from logger import get_logger
@@ -50,9 +52,19 @@ class ConfigManager:
         'max_mixed_items_per_catalog_fetch': -1
     }
 
-    def __init__(self, config_path: str = 'data/config/config.json'):
-        self.config_path = Path(config_path)
+    def __init__(self, config_path: str = 'data/config/config.json', user_id: str = None):
+        self.user_id = user_id
+        if user_id:
+            safe_user_id = self._sanitize_user_id(user_id)
+            self.config_path = Path('data/users') / safe_user_id / 'config.json'
+        else:
+            self.config_path = Path(config_path)
         self.config = self.load()
+
+    @staticmethod
+    def _sanitize_user_id(user_id: str) -> str:
+        safe = re.sub(r'[^a-z0-9._-]+', '_', str(user_id).strip().lower())
+        return safe.strip('._-') or 'user'
 
     def load(self) -> Dict[str, Any]:
         """Load configuration from disk or return default"""
@@ -65,7 +77,7 @@ class ConfigManager:
                 loaded_config = self._migrate_config(loaded_config)
 
                 # Merge with defaults to ensure all keys exist
-                config = self.DEFAULT_CONFIG.copy()
+                config = copy.deepcopy(self.DEFAULT_CONFIG)
                 config.update(loaded_config)
 
                 # Migrate series-based limits to episode-based limits
@@ -73,10 +85,10 @@ class ConfigManager:
 
                 return config
             else:
-                return self.DEFAULT_CONFIG.copy()
+                return copy.deepcopy(self.DEFAULT_CONFIG)
         except Exception as e:
             print(f"Error loading config: {e}")
-            return self.DEFAULT_CONFIG.copy()
+            return copy.deepcopy(self.DEFAULT_CONFIG)
 
     def _migrate_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """Migrate configuration to new formats"""
@@ -265,7 +277,7 @@ class ConfigManager:
 
     def reset(self) -> bool:
         """Reset configuration to defaults"""
-        self.config = self.DEFAULT_CONFIG.copy()
+        self.config = copy.deepcopy(self.DEFAULT_CONFIG)
         return self.save()
 
     def get_addons(self) -> List:
